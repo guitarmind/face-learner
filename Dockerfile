@@ -6,5 +6,6 @@ ENV HOME=/root/face_learner
 
 WORKDIR ${HOME}
 COPY . .
+RUN chmod -R 777 ${HOME}
 
-CMD /bin/bash -l -c 'web/start-servers.sh'
+CMD /bin/bash -l -c '/root/face_learner/web/start-servers.sh'
