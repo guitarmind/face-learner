@@ -1,0 +1,66 @@
+<!--
+Author: Mark Peng (markpeng.ntu@gmail.com)
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+-->
+
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="utf-8">
+        <meta http-equiv="X-UA-Compatible" content="IE=edge">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <title>Web-based Face Learning Tool</title>
+        <link href="deps/css/bootstrap.min.css" rel="stylesheet">
+        <!-- <link href="css/main.css" rel="stylesheet"> -->
+        <script src="deps/js/jquery.min.js"></script>
+        <script src="deps/js/bootstrap.min.js"></script>
+    </head>
+    <body>
+        <div class="container">
+            <div class="header well text-center">
+                <h1>Face Learning</h1>
+                <div id="video-panel">
+                    <img src="img/test_face.jpg" width="400"></img>
+                    <!-- <video id="videoel" width="400" height="300"
+                           preload="auto" loop></video> -->
+                </div>
+                <!-- <div id='tab-annotated' class='tab-content current'>
+                    <div id="detectedFaces"></div>
+                </div> -->
+            </div>
+            <div class="content">
+            </div>
+            <div class="well">Basic Well</div>
+        </div>
+    </body>
+    <script src="js/utils.js"></script>
+    <script src="js/openface-demo.js"></script>
+    <script type="text/javascript">
+
+     var vid = document.getElementById('videoel'),
+         vidReady = false;
+     var socket, socketName;
+
+     // if (navigator.getUserMedia) {
+     //     var videoSelector = {video : true};
+     //     navigator.getUserMedia(videoSelector, umSuccess, function() {
+     //         alert("Error fetching video from Webcam");
+     //     });
+     // } else {
+     //     alert("No webcam detected.");
+     // }
+
+     // createSocket("ws:" + window.location.hostname + ":9000", "Local");
+    </script>
+</html>
