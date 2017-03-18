@@ -34,6 +34,11 @@ consoleHandler.setFormatter(formatter)
 logger.addHandler(fileHandler)
 logger.addHandler(consoleHandler)
 
+class CachedDisabledStaticFileHandler(tornado.web.StaticFileHandler):
+    def set_extra_headers(self, path):
+        # Disable cache
+        self.set_header('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0')
+
 def main():
     parser = optparse.OptionParser()
     parser.add_option('-p', '--port', dest='port', help='the listening port of Web server (default: 8000)')
@@ -44,13 +49,13 @@ def main():
       port = 8000
 
     application = tornado.web.Application([
-                    (r"/(.*)", tornado.web.StaticFileHandler, {"path": ".", "default_filename": "index.html"}),
-                    (r'/css/(.*)',tornado.web.StaticFileHandler,{'path':"deps/css"}),
-                    (r'/js/(.*)',tornado.web.StaticFileHandler,{'path':"deps/js"}),
-                    (r'/fonts/(.*)',tornado.web.StaticFileHandler,{'path':"deps/fonts"}),
-                    (r'/css/(.*)',tornado.web.StaticFileHandler,{'path':"css"}),
-                    (r'/js/(.*)',tornado.web.StaticFileHandler,{'path':"js"}),
-                    (r'/img/(.*)',tornado.web.StaticFileHandler,{'path':"img"})])
+                    (r"/(.*)", CachedDisabledStaticFileHandler, {"path": ".", "default_filename": "index.html"}),
+                    (r'/css/(.*)',CachedDisabledStaticFileHandler,{'path':"deps/css"}),
+                    (r'/js/(.*)',CachedDisabledStaticFileHandler,{'path':"deps/js"}),
+                    (r'/fonts/(.*)',CachedDisabledStaticFileHandler,{'path':"deps/fonts"}),
+                    (r'/css/(.*)',CachedDisabledStaticFileHandler,{'path':"css"}),
+                    (r'/js/(.*)',CachedDisabledStaticFileHandler,{'path':"js"}),
+                    (r'/img/(.*)',CachedDisabledStaticFileHandler,{'path':"img"})])
     http_server = tornado.httpserver.HTTPServer(application)
     http_server.listen(port)
     logger.info("Web server starts at port " + str(port) + ".")

@@ -22,7 +22,7 @@ limitations under the License.
         <meta name="viewport" content="width=device-width, initial-scale=1">
         <title>Web-based Face Learning Tool</title>
         <link href="deps/css/bootstrap.min.css" rel="stylesheet">
-        <!-- <link href="css/main.css" rel="stylesheet"> -->
+        <link href="css/main.css" rel="stylesheet">
         <script src="deps/js/jquery.min.js"></script>
         <script src="deps/js/bootstrap.min.js"></script>
     </head>
@@ -30,37 +30,81 @@ limitations under the License.
         <div class="container">
             <div class="header well text-center">
                 <h1>Face Learning</h1>
-                <div id="video-panel">
-                    <img src="img/test_face.jpg" width="400"></img>
-                    <!-- <video id="videoel" width="400" height="300"
-                           preload="auto" loop></video> -->
+                <div id="video-panel" class="hidden">
+                    <!-- <img src="img/test_face.jpg" width="400"></img> -->
+                    <video id="video-box" width="400" height="300"
+                           preload="auto" loop></video>
                 </div>
-                <!-- <div id='tab-annotated' class='tab-content current'>
-                    <div id="detectedFaces"></div>
-                </div> -->
+                <div id="annotated">
+                    <div id="detected-faces" width="400" height="300"></div>
+                    <span id="processing-time" class="small"></span>
+                </div>
+                <span id="server-status" class="small"></span>
             </div>
-            <div class="content">
+            <div class="content well">
+                <h3>Detected Faces</h1>
+                <table class="table table-striped">
+                <thead>
+                    <tr>
+                    <th>Id</th>
+                    <th>Color</th>
+                    <th>Person Name</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td>1</td>
+                        <td>
+                            <div class="color-box round-corner" style="background-color: #3399ff;"></div>
+                        </td>
+                        <td>
+                            <div class="form-group">
+                              <input type="text" class="form-control" id="person1_name" value="markpeng">
+                            </div>
+                        </td>
+                    </tr>
+                    <tr>
+                        <td>2</td>
+                        <td>
+                            <div class="color-box round-corner" style="background-color: #ff9933;"></div>
+                        </td>
+                        <td>
+                            <div class="form-group">
+                              <input type="text" class="form-control" id="person2_name" value="renaud">
+                            </div>
+                        </td>
+                    </tr>
+                    <tr>
+                        <td>3</td>
+                        <td>
+                            <div class="color-box round-corner" style="background-color: #00cc99;"></div>
+                        </td>
+                        <td>
+                            <div class="form-group">
+                              <input type="text" class="form-control" id="person3_name" value="letz">
+                            </div>
+                        </td>
+                    </tr>
+                </tbody>
+                </table>
             </div>
-            <div class="well">Basic Well</div>
+            <div class="learn well">
+                <button type="button" class="btn btn-primary">Start Learning</button>
+            </div>
         </div>
     </body>
     <script src="js/utils.js"></script>
-    <script src="js/openface-demo.js"></script>
+    <script src="js/face-learner.js"></script>
     <script type="text/javascript">
+     if (navigator.getUserMedia) {
+         var videoSelector = {video : true};
+         navigator.getUserMedia(videoSelector, umSuccess, function() {
+             alert("Error fetching video from Webcam");
+         });
+     } else {
+         alert("No webcam detected.");
+     }
 
-     var vid = document.getElementById('videoel'),
-         vidReady = false;
-     var socket, socketName;
-
-     // if (navigator.getUserMedia) {
-     //     var videoSelector = {video : true};
-     //     navigator.getUserMedia(videoSelector, umSuccess, function() {
-     //         alert("Error fetching video from Webcam");
-     //     });
-     // } else {
-     //     alert("No webcam detected.");
-     // }
-
-     // createSocket("ws:" + window.location.hostname + ":9000", "Local");
+     createSocket("ws:" + window.location.hostname + ":9000", "Local");
     </script>
 </html>
