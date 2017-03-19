@@ -37,7 +37,8 @@ import face_recognition
 
 incoming_frame_width = 400
 incoming_frame_height = 300
-resize_ratio = 2
+# disable resize as it causes small faces hard to detect
+resize_ratio = 1
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--port', type=int, default=9000,
