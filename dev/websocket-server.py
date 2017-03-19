@@ -23,7 +23,7 @@ from twisted.python import log
 from twisted.internet import reactor
 
 import argparse
-# import cv2
+import cv2
 # import imagehash
 import json
 from PIL import Image
@@ -33,8 +33,6 @@ import StringIO
 import urllib
 import base64
 import time
-
-import matplotlib.pyplot as plt
 
 incoming_frame_width = 400
 incoming_frame_height = 300
@@ -77,11 +75,10 @@ class FaceLearnerProtocol(WebSocketServerProtocol):
         if msg['type'] == "FRAME":
             start_time = time.time()
             content = self.processFrame(msg['dataURL'], msg['labeled'])
-            processing_time = (time.time() - start_time) * 1000 # ms
             msg = {
                 "type": "ANNOTATED",
                 "content": content,
-                "processing_time": "{:.2f}".format(processing_time) 
+                "processing_time": "{:.2f}".format(self.processing_time(start_time))
             }
             self.sendMessage(json.dumps(msg))
         else:
@@ -91,6 +88,7 @@ class FaceLearnerProtocol(WebSocketServerProtocol):
         print("WebSocket connection closed: {0}".format(reason))
 
     def processFrame(self, dataURL, labled):
+        start_time = time.time()
         head = "data:image/jpeg;base64,"
         assert(dataURL.startswith(head))
         imgdata = base64.b64decode(dataURL[len(head):])
@@ -98,30 +96,40 @@ class FaceLearnerProtocol(WebSocketServerProtocol):
         imgF.write(imgdata)
         imgF.seek(0)
         img = Image.open(imgF)
+        print("Time spent on loading base64 image: {:.2f} ms".format(
+            self.processing_time(start_time)
+        ))
 
-        buf = np.fliplr(np.asarray(img))
-        # convert RGB to BGR?
-        rgbFrame = np.zeros((incoming_frame_height, incoming_frame_width, 3),
-                            dtype=np.uint8)
-        rgbFrame[:, :, 0] = buf[:, :, 2]
-        rgbFrame[:, :, 1] = buf[:, :, 1]
-        rgbFrame[:, :, 2] = buf[:, :, 0]
+        start_time = time.time()
+        # flip image horizontally
+        buf = cv2.flip(np.asarray(img), flipCode=1)
+        # convert BGR to RGB
+        rgbFrame = cv2.cvtColor(buf, cv2.COLOR_BGR2RGB)
+        print("Time spent on reversing image: {:.2f} ms".format(
+            self.processing_time(start_time)
+        ))
 
-        annotatedFrame = np.copy(buf)
+        start_time = time.time()
+        annotatedFrame = np.copy(rgbFrame)
+        print("Time spent on copying image: {:.2f} ms".format(
+            self.processing_time(start_time)
+        ))
 
+        start_time = time.time()
         # generate image data url from annotated frame
-        plt.figure()
-        plt.imshow(annotatedFrame)
-        plt.xticks([])
-        plt.yticks([])
-        imgdata = StringIO.StringIO()
-        plt.savefig(imgdata, format='png', bbox_inches='tight')
-        imgdata.seek(0)
+        png_encoded = cv2.imencode('.png', annotatedFrame)
         content = 'data:image/png;base64,' + \
-            urllib.quote(base64.b64encode(imgdata.buf))
-        plt.close()
-        
+            urllib.quote(base64.b64encode(png_encoded[1]))
+        print("Time spent on drawing image: {:.2f} ms".format(
+            self.processing_time(start_time)
+        ))
+
         return(content)
+
+    def processing_time(self, start_time):
+        elapsed = (time.time() - start_time) * 1000 # ms
+        return(elapsed)
+
 
 if __name__ == '__main__':
     log.startLogging(sys.stdout)
