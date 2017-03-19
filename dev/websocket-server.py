@@ -140,13 +140,13 @@ class FaceLearnerProtocol(WebSocketServerProtocol):
             bottom = bottom * resize_ratio
             left = left * resize_ratio
 
-            # Draw a box around the face
-            cv2.rectangle(rgbFrame, (left, top), (right, bottom), (153, 255, 204), thickness=2)
+            # Draw a box around the face (color order: BGR)
+            cv2.rectangle(rgbFrame, (left, top), (right, bottom), (243, 194, 48), thickness=2)
 
-            # Draw a labeled name below the face
+            # Draw a labeled name below the face (color order: BGR)
             font = cv2.FONT_HERSHEY_DUPLEX
             cv2.putText(rgbFrame, name, (left, top - 10), font, fontScale=0.75,
-                        color=(152, 255, 204), thickness=2)
+                        color=(243, 194, 48), thickness=2)
         print("Time spent on updating image: {:.2f} ms".format(
             self.processing_time(start_time)
         ))
