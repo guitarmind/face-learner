@@ -37,6 +37,7 @@ import face_recognition
 
 incoming_frame_width = 400
 incoming_frame_height = 300
+resize_ratio = 2
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--port', type=int, default=9000,
@@ -109,12 +110,16 @@ class FaceLearnerProtocol(WebSocketServerProtocol):
         print("Time spent on reversing image: {:.2f} ms".format(
             self.processing_time(start_time)
         ))
+        # resize and convert BGR to GRAY for faster face detection
+        smallGrayFrame = cv2.resize(buf, (0,0), fx=1.0/resize_ratio, fy=1.0/resize_ratio)
+        grayFrame = cv2.cvtColor(smallGrayFrame, cv2.COLOR_BGR2GRAY)
+        # grayFrame = cv2.cvtColor(buf, cv2.COLOR_BGR2GRAY)
 
         ## Dectect Faces ##
 
         start_time = time.time()
         # Find all the faces and face enqcodings in the frame of Webcam
-        face_locations = face_recognition.face_locations(rgbFrame)
+        face_locations = face_recognition.face_locations(grayFrame)
         print("Time spent on detecting face: {:.2f} ms".format(
             self.processing_time(start_time)
         ))
@@ -127,6 +132,13 @@ class FaceLearnerProtocol(WebSocketServerProtocol):
         start_time = time.time()
         for(top, right, bottom, left), face_encoding in zip(face_locations, face_encodings):
             name = "Unknown"
+
+            # Resize to original resolution
+            top = top * resize_ratio
+            right = right * resize_ratio
+            bottom = bottom * resize_ratio
+            left = left * resize_ratio
+
             # Draw a box around the face
             cv2.rectangle(rgbFrame, (left, top), (right, bottom), (153, 255, 204), thickness=2)
 
