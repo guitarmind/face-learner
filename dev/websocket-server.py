@@ -24,7 +24,6 @@ from twisted.internet import reactor
 
 import argparse
 import cv2
-# import imagehash
 import json
 from PIL import Image
 import numpy as np
@@ -33,6 +32,8 @@ import StringIO
 import urllib
 import base64
 import time
+
+import face_recognition
 
 incoming_frame_width = 400
 incoming_frame_height = 300
@@ -106,6 +107,34 @@ class FaceLearnerProtocol(WebSocketServerProtocol):
         # convert BGR to RGB
         rgbFrame = cv2.cvtColor(buf, cv2.COLOR_BGR2RGB)
         print("Time spent on reversing image: {:.2f} ms".format(
+            self.processing_time(start_time)
+        ))
+
+        ## Dectect Faces ##
+
+        start_time = time.time()
+        # Find all the faces and face enqcodings in the frame of Webcam
+        face_locations = face_recognition.face_locations(rgbFrame)
+        print("Time spent on detecting face: {:.2f} ms".format(
+            self.processing_time(start_time)
+        ))
+        start_time = time.time()
+        face_encodings = face_recognition.face_encodings(rgbFrame, face_locations)
+        print("Time spent on extracting face embeddings: {:.2f} ms".format(
+            self.processing_time(start_time)
+        ))
+
+        start_time = time.time()
+        for(top, right, bottom, left), face_encoding in zip(face_locations, face_encodings):
+            name = "Unknown"
+            # Draw a box around the face
+            cv2.rectangle(rgbFrame, (left, top), (right, bottom), (153, 255, 204), thickness=2)
+
+            # Draw a labeled name below the face
+            font = cv2.FONT_HERSHEY_DUPLEX
+            cv2.putText(rgbFrame, name, (left, top - 10), font, fontScale=0.75,
+                        color=(152, 255, 204), thickness=2)
+        print("Time spent on updating image: {:.2f} ms".format(
             self.processing_time(start_time)
         ))
 

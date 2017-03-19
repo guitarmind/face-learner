@@ -50,7 +50,7 @@ function sendFrameLoop() {
     };
     socket.send(JSON.stringify(msg));
 
-    setTimeout(function() {requestAnimFrame(sendFrameLoop)}, 250);
+    setTimeout(function() {requestAnimFrame(sendFrameLoop)}, 500);
 }
 
 function umSuccess(stream) {
