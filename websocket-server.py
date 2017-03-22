@@ -359,6 +359,7 @@ class OpenFaceServerProtocol(WebSocketServerProtocol):
             }
             self.sendMessage(json.dumps(msg))
 
+            start_time = time.time()
             plt.figure()
             plt.imshow(annotatedFrame)
             plt.xticks([])
@@ -366,6 +367,10 @@ class OpenFaceServerProtocol(WebSocketServerProtocol):
 
             imgdata = StringIO.StringIO()
             plt.savefig(imgdata, format='png')
+            print("Time spent on updating image: {:.2f} ms".format(
+                self.processing_time(start_time)
+            ))
+
             imgdata.seek(0)
             content = 'data:image/png;base64,' + \
                 urllib.quote(base64.b64encode(imgdata.buf))
