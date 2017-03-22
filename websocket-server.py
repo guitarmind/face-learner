@@ -245,6 +245,7 @@ class OpenFaceServerProtocol(WebSocketServerProtocol):
             self.svm = GridSearchCV(SVC(C=1), param_grid, cv=5).fit(X, y)
 
     def processFrame(self, dataURL, identity):
+        process_frame_start_time = time.time()
         head = "data:image/jpeg;base64,"
         assert(dataURL.startswith(head))
         imgdata = base64.b64decode(dataURL[len(head):])
@@ -370,7 +371,8 @@ class OpenFaceServerProtocol(WebSocketServerProtocol):
                 urllib.quote(base64.b64encode(imgdata.buf))
             msg = {
                 "type": "ANNOTATED",
-                "content": content
+                "content": content,
+                "processing_time": "{:.2f}".format(self.processing_time(process_frame_start_time))
             }
             plt.close()
             self.sendMessage(json.dumps(msg))

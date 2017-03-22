@@ -209,7 +209,10 @@ function createSocket(address, name) {
         } else if (j.type == "ANNOTATED") {
             $("#detectedFaces").html(
                 "<img src='" + j['content'] + "' width='430px'></img>"
-            )
+            );
+            $("#processing-time").html(
+                "Processing time: <strong>" + j['processing_time'] + "</strong> ms"
+            );
         } else if (j.type == "TSNE_DATA") {
             BootstrapDialog.show({
                 message: "<img src='" + j['content'] + "' width='100%'></img>"
