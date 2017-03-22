@@ -37,6 +37,7 @@ import os
 import StringIO
 import urllib
 import base64
+import time
 
 from sklearn.decomposition import PCA
 from sklearn.grid_search import GridSearchCV
@@ -267,14 +268,29 @@ class OpenFaceServerProtocol(WebSocketServerProtocol):
 
         identities = []
         # bbs = align.getAllFaceBoundingBoxes(rgbFrame)
+        start_time = time.time()
         bb = align.getLargestFaceBoundingBox(rgbFrame)
+        print("Time spent on detecting largest face: {:.2f} ms".format(
+            self.processing_time(start_time)
+        ))
+
         bbs = [bb] if bb is not None else []
         for bb in bbs:
             # print(len(bbs))
+            start_time = time.time()
             landmarks = align.findLandmarks(rgbFrame, bb)
+            print("Time spent on finding face landmarks: {:.2f} ms".format(
+                self.processing_time(start_time)
+            ))
+
+            start_time = time.time()
             alignedFace = align.align(args.imgDim, rgbFrame, bb,
                                       landmarks=landmarks,
                                       landmarkIndices=openface.AlignDlib.OUTER_EYES_AND_NOSE)
+            print("Time spent on aligning face: {:.2f} ms".format(
+                self.processing_time(start_time)
+            ))
+
             if alignedFace is None:
                 continue
 
@@ -282,7 +298,12 @@ class OpenFaceServerProtocol(WebSocketServerProtocol):
             if phash in self.images:
                 identity = self.images[phash].identity
             else:
+                start_time = time.time()
                 rep = net.forward(alignedFace)
+                print("Time spent on face representation: {:.2f} ms".format(
+                    self.processing_time(start_time)
+                ))
+
                 # print(rep)
                 if self.training:
                     self.images[phash] = Face(rep, identity)
@@ -353,6 +374,9 @@ class OpenFaceServerProtocol(WebSocketServerProtocol):
             }
             plt.close()
             self.sendMessage(json.dumps(msg))
+    def processing_time(self, start_time):
+        elapsed = (time.time() - start_time) * 1000 # ms
+        return(elapsed)
 
 if __name__ == '__main__':
     log.startLogging(sys.stdout)

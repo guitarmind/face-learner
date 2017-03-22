@@ -100,7 +100,7 @@ function createSocket(address, name) {
         if (json.type == "ANNOTATED") {
             console.log(json)
             $("#detected-faces").html(
-                "<img src='" + json['content'] + "' width='400px'></img>"
+                "<img src='" + json['content'] + "'></img>"
             );
             $("#processing-time").html(
                 "Processing time: <strong>" + json['processing_time'] + "</strong> ms"
