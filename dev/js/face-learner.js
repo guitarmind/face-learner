@@ -28,6 +28,7 @@ window.URL = window.URL ||
 var vid = document.getElementById('video-box'),
     vidReady = false;
 var socket, socketName;
+var detectFaces;
 
 function sendFrameLoop() {
     if (socket == null || socket.readyState != socket.OPEN || !vidReady) {
@@ -93,19 +94,51 @@ function createSocket(address, name) {
     socket.binaryType = "arraybuffer";
     socket.onopen = function() {
         $("#server-status").html("Connected to " + name + " Websocket server");
+
+        // convert hex color to RGB
+        rgbColors = colors.map(hexToRgb)
+        // send as message to websocket server
+        var msg = {
+            'type': 'PALETTE',
+            'colors': rgbColors
+        };
+        socket.send(JSON.stringify(msg));
     }
     socket.onmessage = function(e) {
-        console.log(e);
         json = JSON.parse(e.data)
         if (json.type == "ANNOTATED") {
-            console.log(json)
+            // console.log(json)
+            var newFaces = json['new-faces']
+            for (var i = 0; i < newFaces.length; i++) {
+                newFace = newFaces[i]
+                tbody = $("#face-table").find('tbody')
+                while (tbody.firstChild) {
+                    tbody.removeChild(tbody.firstChild);
+                }
+                var row = (
+                    '<tr>' +
+                    '<td>'+ (i + 1) +'</td>'+
+                    '<td>' +
+                      '<div class="color-box round-corner" style="background-color: #' +
+                        colors[newFace['color-index']]+ ';"></div>' +
+                    '</td>'+
+                    '<td>'+
+                      '<div class="form-group">' +
+                        '<input type="text" class="form-control" id="person' + (i + 1) +
+                            '_name" value="' + newFace['name'] +'">' +
+                      '</div>' +
+                    '</td>'+
+                    '</tr>'
+                );
+                tbody.append(row);
+            }
+
             $("#detected-faces").html(
                 "<img src='" + json['content'] + "'></img>"
             );
             $("#processing-time").html(
                 "Processing time: <strong>" + json['processing_time'] + "</strong> ms"
             );
-            
         } else {
             console.log("Unrecognized message type: " + json.type);
         }

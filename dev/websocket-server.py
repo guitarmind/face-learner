@@ -63,6 +63,7 @@ class FaceLearnerProtocol(WebSocketServerProtocol):
         # call init function of WebSocketServerProtocol
         super(self.__class__, self).__init__()
         self.images = {}
+        self.palette = []
 
     def onConnect(self, request):
         print("Client connecting: {0}".format(request.peer))
@@ -77,13 +78,18 @@ class FaceLearnerProtocol(WebSocketServerProtocol):
             msg['type'], len(raw)))
         if msg['type'] == "FRAME":
             start_time = time.time()
-            content = self.processFrame(msg['dataURL'], msg['labeled'])
+            content, faces = self.processFrame(msg['dataURL'], msg['labeled'])
             msg = {
                 "type": "ANNOTATED",
                 "content": content,
+                "new-faces": faces,
                 "processing_time": "{:.2f}".format(self.processing_time(start_time))
             }
             self.sendMessage(json.dumps(msg))
+        elif msg['type'] == "PALETTE":
+            start_time = time.time()
+            colors = msg['colors']
+            self.palette = colors
         else:
             print("Warning: Unknown message type: {}".format(msg['type']))
 
@@ -131,6 +137,8 @@ class FaceLearnerProtocol(WebSocketServerProtocol):
         ))
 
         start_time = time.time()
+        faces = []
+        index = 0
         for(top, right, bottom, left), face_encoding in zip(face_locations, face_encodings):
             name = "Unknown"
 
@@ -140,13 +148,24 @@ class FaceLearnerProtocol(WebSocketServerProtocol):
             bottom = bottom * resize_ratio
             left = left * resize_ratio
 
+            color = self.palette[index]
+            face = {
+                "color-index": index,
+                "name": name
+            }
+            faces.append(face)
+
             # Draw a box around the face (color order: BGR)
-            cv2.rectangle(rgbFrame, (left, top), (right, bottom), (243, 194, 48), thickness=2)
+            cv2.rectangle(rgbFrame, (left, top), (right, bottom),
+                (color['b'], color['g'], color['r']), thickness=2)
 
             # Draw a labeled name below the face (color order: BGR)
             font = cv2.FONT_HERSHEY_DUPLEX
             cv2.putText(rgbFrame, name, (left, top - 10), font, fontScale=0.75,
-                        color=(243, 194, 48), thickness=2)
+                color=(color['b'], color['g'], color['r']), thickness=2)
+
+            index += 1
+
         print("Time spent on updating image: {:.2f} ms".format(
             self.processing_time(start_time)
         ))
@@ -166,7 +185,7 @@ class FaceLearnerProtocol(WebSocketServerProtocol):
             self.processing_time(start_time)
         ))
 
-        return(content)
+        return content, faces
 
     def processing_time(self, start_time):
         elapsed = (time.time() - start_time) * 1000 # ms

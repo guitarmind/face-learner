@@ -25,6 +25,7 @@ limitations under the License.
         <link href="css/main.css" rel="stylesheet">
         <script src="deps/js/jquery.min.js"></script>
         <script src="deps/js/bootstrap.min.js"></script>
+        <script src="deps/js/palette.js"></script>
     </head>
     <body>
         <div class="container">
@@ -41,7 +42,7 @@ limitations under the License.
                 </div>
                 <span id="server-status" class="small"></span>
             </div>
-            <div class="content well">
+            <div id="face-table" class="content well">
                 <h3>Detected Faces</h1>
                 <table class="table table-striped">
                 <thead>
@@ -51,41 +52,7 @@ limitations under the License.
                     <th>Person Name</th>
                     </tr>
                 </thead>
-                <tbody>
-                    <tr>
-                        <td>1</td>
-                        <td>
-                            <div class="color-box round-corner" style="background-color: #3399ff;"></div>
-                        </td>
-                        <td>
-                            <div class="form-group">
-                              <input type="text" class="form-control" id="person1_name" value="markpeng">
-                            </div>
-                        </td>
-                    </tr>
-                    <tr>
-                        <td>2</td>
-                        <td>
-                            <div class="color-box round-corner" style="background-color: #ff9933;"></div>
-                        </td>
-                        <td>
-                            <div class="form-group">
-                              <input type="text" class="form-control" id="person2_name" value="renaud">
-                            </div>
-                        </td>
-                    </tr>
-                    <tr>
-                        <td>3</td>
-                        <td>
-                            <div class="color-box round-corner" style="background-color: #00cc99;"></div>
-                        </td>
-                        <td>
-                            <div class="form-group">
-                              <input type="text" class="form-control" id="person3_name" value="letz">
-                            </div>
-                        </td>
-                    </tr>
-                </tbody>
+                <tbody></tbody>
                 </table>
             </div>
             <div class="learn well">
@@ -104,6 +71,8 @@ limitations under the License.
      } else {
          alert("No webcam detected.");
      }
+
+     var colors = palette('cb-Paired', 10);
 
      createSocket("ws:" + window.location.hostname + ":9000", "Local");
     </script>
