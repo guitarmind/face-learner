@@ -79,7 +79,8 @@ function createSocket(address, name) {
         // send as message to websocket server
         var msg = {
             'type': 'PALETTE',
-            'colors': rgbColors
+            'colors': rgbColors,
+            'colors_hex': colors
         };
         socket.send(JSON.stringify(msg));
     }
@@ -91,7 +92,7 @@ function createSocket(address, name) {
                 face = frameFaces[i]
                 tbody = $("#face-table").find('tbody')
                 // see if this person has been listed in the face table
-                if (tbody.find('#' + face['uuid']).length) {
+                if (tbody.find('#' + face['uuid']).length == 0) {
                     var row = (
                         '<tr>' +
                         '<td>'+ (Object.keys(people).length + 1) +'</td>'+

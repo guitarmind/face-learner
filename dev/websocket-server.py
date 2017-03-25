@@ -42,6 +42,8 @@ incoming_frame_width = 400
 incoming_frame_height = 300
 # Disable resize as it causes small faces hard to detect
 resize_ratio = 1
+if not os.path.exists("model"):
+    os.makedirs("model")
 model_path = "model/learned_faces.pkl"
 
 parser = argparse.ArgumentParser()
@@ -81,6 +83,7 @@ class FaceLearnerProtocol(WebSocketServerProtocol):
         super(self.__class__, self).__init__()
         self.images = {}
         self.palette = []
+        self.palette_hex = []
         # Load learned model if found
         global model_path
         if os.path.isfile(model_path):
@@ -117,7 +120,9 @@ class FaceLearnerProtocol(WebSocketServerProtocol):
         elif msg['type'] == "PALETTE":
             start_time = time.time()
             colors = msg['colors']
+            colors_hex = msg['colors_hex']
             self.palette = colors
+            self.palette_hex = colors_hex
         else:
             print("Warning: Unknown message type: {}".format(msg['type']))
 
@@ -172,7 +177,8 @@ class FaceLearnerProtocol(WebSocketServerProtocol):
             # Check if the face has been learned before
             result = self.face_lookup(embeddings)
             if result is None:
-                uuid = str(uuid.uuid4())
+                uid = str(uuid.uuid4())
+                face_obj = Face(uid, name, face_encodings)
                 self.learned_faces.add(face_obj)
 
                 # Update learned faces to model file
@@ -181,15 +187,16 @@ class FaceLearnerProtocol(WebSocketServerProtocol):
                         protocol=pickle.HIGHEST_PROTOCOL)
                 print('New face learned!')
             else:
-                uuid = result.uuid
+                uid = result.uuid
                 name = result.name
+                face_obj = Face(uid, name, face_encodings)
 
-            face_obj = Face(uuid, name, face_encodings)
-            color_index = len(self.detected_faces) + 1
+            color_index = len(self.detected_faces) - 1 if len(self.detected_faces) > 0 else 0
             color = self.palette[color_index % 10]
+            color_hex = self.palette_hex[color_index % 10]
             face = {
-                "uuid": uuid,
-                "color": color,
+                "uuid": uid,
+                "color": color_hex,
                 "name": name
             }
             frame_faces.append(face)
@@ -237,6 +244,11 @@ class FaceLearnerProtocol(WebSocketServerProtocol):
 
     def face_lookup(self, unknown):
         if len(self.learned_faces) > 0:
+            # Lookup from detected faces first
+            for known in self.detected_faces:
+                matched = face_recognition.compare_faces(known.embeddings, unknown, tolerance=0.6)
+                if matched:
+                    return known
             for known in self.learned_faces:
                 matched = face_recognition.compare_faces(known.embeddings, unknown, tolerance=0.6)
                 if matched:
