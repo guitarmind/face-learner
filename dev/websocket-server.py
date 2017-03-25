@@ -117,6 +117,17 @@ class FaceLearnerProtocol(WebSocketServerProtocol):
                 "processing_time": "{:.2f}".format(self.processing_time(start_time))
             }
             self.sendMessage(json.dumps(msg))
+        elif msg['type'] == "LABELED":
+            # update labeled name of learned face
+            face_obj = None
+            for known in self.detected_faces:
+                if known.uuid == msg['uuid']:
+                    face_obj = known
+                    break
+            print(face_obj)
+            if face_obj is not None:
+                face_obj.name = msg['name']
+                self.detected_faces.add(face_obj)
         elif msg['type'] == "PALETTE":
             start_time = time.time()
             colors = msg['colors']

@@ -67,9 +67,14 @@ function umSuccess(stream) {
     sendFrameLoop();
 }
 
-function labelPersonCallback(e) {
-    // var labeledName = $("#addPersonTxt").val();
-    console.log(e)
+function labelPersonCallback(e, id, text) {
+    // send as message to websocket server
+    var msg = {
+        'type': 'LABELED',
+        'uuid': id,
+        'name': text
+    };
+    socket.send(JSON.stringify(msg)); 
 }
 
 function createSocket(address, name) {

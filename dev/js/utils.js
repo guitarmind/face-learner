@@ -28,7 +28,7 @@ $.fn.pressEnter = function(fn) {
         $(this).keyup(function(e){
             if(e.keyCode == 13)
             {
-                $(this).trigger("enterPress");
+                $(this).trigger("enterPress", [$(this).attr('id'), $(this).val()]);
             }
         })
     });
