@@ -32,38 +32,66 @@ import StringIO
 import urllib
 import base64
 import time
+import uuid
 
+import pickle
+import os.path
 import face_recognition
 
 incoming_frame_width = 400
 incoming_frame_height = 300
-# disable resize as it causes small faces hard to detect
+# Disable resize as it causes small faces hard to detect
 resize_ratio = 1
+model_path = "model/learned_faces.pkl"
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--port', type=int, default=9000,
                     help='WebSocket Port')
 args = parser.parse_args()
 
-# Face object
+# Unique face object
 class Face:
-    def __init__(self, embeddings, labeled):
+    def __init__(self, uuid, name, embeddings):
+        self.uuid = uuid
+        self.name = name
         self.embeddings = embeddings
-        self.labeled = labeled
+
+    def __hash__(self):
+        return hash(self.uuid)
+
+    def __eq__(self, other):
+        return self.uuid == other.uuid
+
+    def __ne__(self, other):
+        # Not strictly necessary, but to avoid having both x==y and x!=y
+        # True at the same time
+        return not(self == other)
 
     def __repr__(self):
-        return "{{labeled id: {}, embeddings[0:5]: {}}}".format(
-            str(self.labeled),
+        return "{{uuid: {}, name: {}, embeddings[0:5]: {}}}".format(
+            self.uuid,
+            self.name,
             self.embeddings[0:5]
         )
 
 class FaceLearnerProtocol(WebSocketServerProtocol):
 
     def __init__(self):
-        # call init function of WebSocketServerProtocol
+        # Call init function of WebSocketServerProtocol
         super(self.__class__, self).__init__()
         self.images = {}
         self.palette = []
+        # Load learned model if found
+        global model_path
+        if os.path.isfile(model_path):
+            with open(model_path, "rb") as f:
+                model = pickle.load(f)
+                if model is not None:
+                    self.learned_faces = model
+        else:
+            self.learned_faces = set()
+        # A cache set of detect faces
+        self.detected_faces = set()
 
     def onConnect(self, request):
         print("Client connecting: {0}".format(request.peer))
@@ -78,11 +106,11 @@ class FaceLearnerProtocol(WebSocketServerProtocol):
             msg['type'], len(raw)))
         if msg['type'] == "FRAME":
             start_time = time.time()
-            content, faces = self.processFrame(msg['dataURL'], msg['labeled'])
+            content, faces = self.processFrame(msg['dataURL'])
             msg = {
                 "type": "ANNOTATED",
                 "content": content,
-                "new-faces": faces,
+                "frame_faces": faces,
                 "processing_time": "{:.2f}".format(self.processing_time(start_time))
             }
             self.sendMessage(json.dumps(msg))
@@ -96,7 +124,7 @@ class FaceLearnerProtocol(WebSocketServerProtocol):
     def onClose(self, wasClean, code, reason):
         print("WebSocket connection closed: {0}".format(reason))
 
-    def processFrame(self, dataURL, labled):
+    def processFrame(self, dataURL):
         start_time = time.time()
         head = "data:image/jpeg;base64,"
         assert(dataURL.startswith(head))
@@ -110,17 +138,16 @@ class FaceLearnerProtocol(WebSocketServerProtocol):
         ))
 
         start_time = time.time()
-        # flip image horizontally
+        # Flip image horizontally
         buf = cv2.flip(np.asarray(img), flipCode=1)
-        # convert BGR to RGB
+        # Convert BGR to RGB
         rgbFrame = cv2.cvtColor(buf, cv2.COLOR_BGR2RGB)
         print("Time spent on reversing image: {:.2f} ms".format(
             self.processing_time(start_time)
         ))
-        # resize and convert BGR to GRAY for faster face detection
+        # Resize and convert BGR to GRAY for faster face detection
         smallGrayFrame = cv2.resize(buf, (0,0), fx=1.0/resize_ratio, fy=1.0/resize_ratio)
         grayFrame = cv2.cvtColor(smallGrayFrame, cv2.COLOR_BGR2GRAY)
-        # grayFrame = cv2.cvtColor(buf, cv2.COLOR_BGR2GRAY)
 
         ## Dectect Faces ##
 
@@ -137,23 +164,42 @@ class FaceLearnerProtocol(WebSocketServerProtocol):
         ))
 
         start_time = time.time()
-        faces = []
-        index = 0
-        for(top, right, bottom, left), face_encoding in zip(face_locations, face_encodings):
+        frame_faces = []
+        print("Detected faces: {}".format(len(face_encodings)))
+        for(top, right, bottom, left), embeddings in zip(face_locations, face_encodings):
             name = "Unknown"
+
+            # Check if the face has been learned before
+            result = self.face_lookup(embeddings)
+            if result is None:
+                uuid = str(uuid.uuid4())
+                self.learned_faces.add(face_obj)
+
+                # Update learned faces to model file
+                with open(model_path, "wb") as f:
+                    pickle.dump(self.learned_faces, f,
+                        protocol=pickle.HIGHEST_PROTOCOL)
+                print('New face learned!')
+            else:
+                uuid = result.uuid
+                name = result.name
+
+            face_obj = Face(uuid, name, face_encodings)
+            color_index = len(self.detected_faces) + 1
+            color = self.palette[color_index % 10]
+            face = {
+                "uuid": uuid,
+                "color": color,
+                "name": name
+            }
+            frame_faces.append(face)
+            self.detected_faces.add(face_obj)
 
             # Resize to original resolution
             top = top * resize_ratio
             right = right * resize_ratio
             bottom = bottom * resize_ratio
             left = left * resize_ratio
-
-            color = self.palette[index]
-            face = {
-                "color-index": index,
-                "name": name
-            }
-            faces.append(face)
 
             # Draw a box around the face (color order: BGR)
             cv2.rectangle(rgbFrame, (left, top), (right, bottom),
@@ -163,8 +209,6 @@ class FaceLearnerProtocol(WebSocketServerProtocol):
             font = cv2.FONT_HERSHEY_DUPLEX
             cv2.putText(rgbFrame, name, (left, top - 10), font, fontScale=0.75,
                 color=(color['b'], color['g'], color['r']), thickness=2)
-
-            index += 1
 
         print("Time spent on updating image: {:.2f} ms".format(
             self.processing_time(start_time)
@@ -177,7 +221,7 @@ class FaceLearnerProtocol(WebSocketServerProtocol):
         ))
 
         start_time = time.time()
-        # generate image data url from annotated frame
+        # Generate image data url from annotated frame
         png_encoded = cv2.imencode('.png', annotatedFrame)
         content = 'data:image/png;base64,' + \
             urllib.quote(base64.b64encode(png_encoded[1]))
@@ -185,12 +229,20 @@ class FaceLearnerProtocol(WebSocketServerProtocol):
             self.processing_time(start_time)
         ))
 
-        return content, faces
+        return content, frame_faces
 
     def processing_time(self, start_time):
         elapsed = (time.time() - start_time) * 1000 # ms
         return(elapsed)
 
+    def face_lookup(self, unknown):
+        if len(self.learned_faces) > 0:
+            for known in self.learned_faces:
+                matched = face_recognition.compare_faces(known.embeddings, unknown, tolerance=0.6)
+                if matched:
+                    return known
+        else:
+            return None
 
 if __name__ == '__main__':
     log.startLogging(sys.stdout)

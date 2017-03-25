@@ -28,7 +28,9 @@ window.URL = window.URL ||
 var vid = document.getElementById('video-box'),
     vidReady = false;
 var socket, socketName;
-var detectFaces;
+// a list of detected people and face thumbnail until now
+var people = {}, images = [];
+var colors = palette('cb-Paired', 10);
 
 function sendFrameLoop() {
     if (socket == null || socket.readyState != socket.OPEN || !vidReady) {
@@ -46,8 +48,7 @@ function sendFrameLoop() {
     // send as message to websocket server
     var msg = {
         'type': 'FRAME',
-        'dataURL': dataURL,
-        'labeled': null
+        'dataURL': dataURL
     };
     socket.send(JSON.stringify(msg));
 
@@ -64,28 +65,6 @@ function umSuccess(stream) {
     vid.play();
     vidReady = true;
     sendFrameLoop();
-}
-
-function getDataURLFromRGB(rgb) {
-    var rgbLen = rgb.length;
-
-    var canvas = $('<canvas/>').width(96).height(96)[0];
-    var ctx = canvas.getContext("2d");
-    var imageData = ctx.createImageData(96, 96);
-    var data = imageData.data;
-    var dLen = data.length;
-    var i = 0, t = 0;
-
-    for (; i < dLen; i +=4) {
-        data[i] = rgb[t+2];
-        data[i+1] = rgb[t+1];
-        data[i+2] = rgb[t];
-        data[i+3] = 255;
-        t += 3;
-    }
-    ctx.putImageData(imageData, 0, 0);
-
-    return canvas.toDataURL("image/png");
 }
 
 function createSocket(address, name) {
@@ -107,30 +86,34 @@ function createSocket(address, name) {
     socket.onmessage = function(e) {
         json = JSON.parse(e.data)
         if (json.type == "ANNOTATED") {
-            // console.log(json)
-            var newFaces = json['new-faces']
-            for (var i = 0; i < newFaces.length; i++) {
-                newFace = newFaces[i]
+            var frameFaces = json['frame_faces']
+            for (var i = 0; i < frameFaces.length; i++) {
+                face = frameFaces[i]
                 tbody = $("#face-table").find('tbody')
-                while (tbody.firstChild) {
-                    tbody.removeChild(tbody.firstChild);
+                // see if this person has been listed in the face table
+                if (tbody.find('#' + face['uuid']).length) {
+                    var row = (
+                        '<tr>' +
+                        '<td>'+ (Object.keys(people).length + 1) +'</td>'+
+                        '<td>' +
+                          '<div class="color-box round-corner" style="background-color: #' +
+                            face['color'] + ';"></div>' +
+                        '</td>'+
+                        '<td>'+
+                          '<div class="form-group">' +
+                            '<input type="text" class="form-control" id="' + face['uuid'] + '" ' +
+                                'value="' + face['name'] +'">' +
+                          '</div>' +
+                        '</td>'+
+                        '</tr>'
+                    );
+                    tbody.append(row);
+
+                    people[face['uuid']] = {
+                        'name': face['name'],
+                        'color': face['color']
+                    }
                 }
-                var row = (
-                    '<tr>' +
-                    '<td>'+ (i + 1) +'</td>'+
-                    '<td>' +
-                      '<div class="color-box round-corner" style="background-color: #' +
-                        colors[newFace['color-index']]+ ';"></div>' +
-                    '</td>'+
-                    '<td>'+
-                      '<div class="form-group">' +
-                        '<input type="text" class="form-control" id="person' + (i + 1) +
-                            '_name" value="' + newFace['name'] +'">' +
-                      '</div>' +
-                    '</td>'+
-                    '</tr>'
-                );
-                tbody.append(row);
             }
 
             $("#detected-faces").html(
