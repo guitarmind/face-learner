@@ -67,6 +67,11 @@ function umSuccess(stream) {
     sendFrameLoop();
 }
 
+function labelPersonCallback(e) {
+    // var labeledName = $("#addPersonTxt").val();
+    console.log(e)
+}
+
 function createSocket(address, name) {
     socket = new WebSocket(address);
     socketName = name;
@@ -109,6 +114,9 @@ function createSocket(address, name) {
                         '</tr>'
                     );
                     tbody.append(row);
+
+                    // bind press enter callback
+                    $('#' + face['uuid']).pressEnter(labelPersonCallback);
 
                     people[face['uuid']] = {
                         'name': face['name'],
