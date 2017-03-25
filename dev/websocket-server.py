@@ -53,9 +53,11 @@ args = parser.parse_args()
 
 # Unique face object
 class Face:
-    def __init__(self, uuid, name, embeddings):
+    def __init__(self, uuid, name, color, color_hex, embeddings):
         self.uuid = uuid
         self.name = name
+        self.color = color
+        self.color_hex = color_hex
         self.embeddings = embeddings
 
     def __hash__(self):
@@ -70,9 +72,10 @@ class Face:
         return not(self == other)
 
     def __repr__(self):
-        return "{{uuid: {}, name: {}, embeddings[0:5]: {}}}".format(
+        return "{{uuid: {}, name: {}, color: {}, embeddings[0:5]: {}}}".format(
             self.uuid,
             self.name,
+            self.color,
             self.embeddings[0:5]
         )
 
@@ -91,6 +94,7 @@ class FaceLearnerProtocol(WebSocketServerProtocol):
                 model = pickle.load(f)
                 if model is not None:
                     self.learned_faces = model
+                    print(model)
         else:
             self.learned_faces = set()
         # A cache set of detect faces
@@ -189,8 +193,18 @@ class FaceLearnerProtocol(WebSocketServerProtocol):
             result = self.face_lookup(embeddings)
             if result is None:
                 uid = str(uuid.uuid4())
-                face_obj = Face(uid, name, face_encodings)
-                self.learned_faces.add(face_obj)
+
+                color_index = len(self.detected_faces) - 1 if len(self.detected_faces) > 0 else 0
+                color = self.palette[color_index % 10]
+                color_hex = self.palette_hex[color_index % 10]
+                face = {
+                    "uuid": uid,
+                    "color": color_hex,
+                    "name": name
+                }
+
+                result = Face(uid, name, color, color_hex, face_encodings)
+                self.learned_faces.add(result)
 
                 # Update learned faces to model file
                 with open(model_path, "wb") as f:
@@ -198,20 +212,15 @@ class FaceLearnerProtocol(WebSocketServerProtocol):
                         protocol=pickle.HIGHEST_PROTOCOL)
                 print('New face learned!')
             else:
-                uid = result.uuid
-                name = result.name
-                face_obj = Face(uid, name, face_encodings)
+                color = result.color
+                face = {
+                    "uuid": result.uuid,
+                    "color": result.color_hex,
+                    "name": result.name
+                }
 
-            color_index = len(self.detected_faces) - 1 if len(self.detected_faces) > 0 else 0
-            color = self.palette[color_index % 10]
-            color_hex = self.palette_hex[color_index % 10]
-            face = {
-                "uuid": uid,
-                "color": color_hex,
-                "name": name
-            }
             frame_faces.append(face)
-            self.detected_faces.add(face_obj)
+            self.detected_faces.add(result)
 
             # Resize to original resolution
             top = top * resize_ratio
@@ -258,14 +267,14 @@ class FaceLearnerProtocol(WebSocketServerProtocol):
             # Lookup from detected faces first
             for known in self.detected_faces:
                 matched = face_recognition.compare_faces(known.embeddings, unknown, tolerance=0.6)
-                if matched:
+                if matched[0]:
                     return known
             for known in self.learned_faces:
                 matched = face_recognition.compare_faces(known.embeddings, unknown, tolerance=0.6)
-                if matched:
+                if matched[0]:
                     return known
-        else:
-            return None
+        
+        return None
 
 if __name__ == '__main__':
     log.startLogging(sys.stdout)
