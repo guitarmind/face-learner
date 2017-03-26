@@ -100,6 +100,7 @@ function createSocket(address, name) {
             var frameFaces = json['frame_faces']
             for (var i = 0; i < frameFaces.length; i++) {
                 face = frameFaces[i]
+                // console.log(face['uuid'])
                 tbody = $("#face-table").find('tbody')
                 // see if this person has been listed in the face table
                 if (tbody.find('#' + face['uuid']).length == 0) {
