@@ -42,14 +42,17 @@ incoming_frame_width = 400
 incoming_frame_height = 300
 # Disable resize as it causes small faces hard to detect
 resize_ratio = 1
-if not os.path.exists("model"):
-    os.makedirs("model")
-model_path = "model/learned_faces.pkl"
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--port', type=int, default=9000,
                     help='WebSocket Port')
+parser.add_argument('--model', type=str, default="model/learned_faces.pkl",
+                    help='Model file path for learned faces')
 args = parser.parse_args()
+
+if not os.path.exists("model"):
+    os.makedirs("model")
+model_path = args.model
 
 # Unique face object
 class Face:
@@ -69,6 +72,9 @@ class Face:
         # Not strictly necessary, but to avoid having both x==y and x!=y
         # True at the same time
         return not(self == other)
+
+    def setName(self, name):
+        self.name = name
 
     def __repr__(self):
         return "{{uuid: {}, name: {}, embeddings[0:5]: {}}}".format(
@@ -108,7 +114,7 @@ class FaceLearnerProtocol(WebSocketServerProtocol):
             self.learned_faces = set()
         # A cache set of detected faces for drawing
         self.detected_vizfaces = set()
-        # A lookup table for faces
+        # A lookup table for drawn faces
         self.face_table = {}
 
     def onConnect(self, request):
@@ -134,14 +140,18 @@ class FaceLearnerProtocol(WebSocketServerProtocol):
             self.sendMessage(json.dumps(msg))
         elif msg['type'] == "LABELED":
             # Update labeled name of learned face
-            learned, vizface = self.face_table[msg['uuid']]
-            if learned is not None and vizface is not None:
-                learned.name = msg['name']
-                vizface.name = msg['name']
-                self.learned_faces.add(learned)
+            vizface = self.face_table[msg['uuid']]
+            if vizface is not None:
+                vizface.setName(msg['name'])
+                learned = Face(vizface.uuid, vizface.name, vizface.embeddings)
+                self.detected_vizfaces.remove(vizface)
                 self.detected_vizfaces.add(vizface)
+                self.learned_faces.remove(learned)
+                self.learned_faces.add(learned)
                 # Update model file
                 self.save_model()
+                print('FACE LABELED!!!!')
+                print("Learned faces: {}".format(len(self.learned_faces)))
         elif msg['type'] == "PALETTE":
             start_time = time.time()
             colors = msg['colors']
@@ -247,46 +257,40 @@ class FaceLearnerProtocol(WebSocketServerProtocol):
         return(elapsed)
 
     def face_lookup(self, unknown):
-        if len(self.learned_faces) > 0:
-            # Lookup from detected faces first
-            for known in self.detected_vizfaces:
-                matched = self.compare_faces(known.embeddings, unknown)
-                print(matched)
-                if matched:
-                    print("DETECTED!!!!")
-                    return known
+        # Lookup from detected faces first
+        for known in self.detected_vizfaces:
+            matched = self.compare_faces(known.embeddings, unknown)
+            if matched:
+                print("DETECTED!!!!")
+                return known
 
-            for known in self.learned_faces:
-                matched = self.compare_faces(known.embeddings, unknown)
-                print(matched)
-                if matched:
-                    # Pick a color for this face
-                    color_index = len(self.detected_vizfaces) if len(self.detected_vizfaces) > 0 else 0
-                    color = self.palette[color_index % 10]
-                    color_hex = self.palette_hex[color_index % 10]
-                    vizface = VizFace(known.uuid, known.name, known.embeddings, color, color_hex)
-                    self.detected_vizfaces.add(vizface)
-                    self.face_table[known.uuid] = (known, vizface)
-                    print("LEANRED!!!!")
-                    return vizface
+        for known in self.learned_faces:
+            matched = self.compare_faces(known.embeddings, unknown)
+            if matched:
+                color, color_hex = self.pick_face_color()
+                vizface = VizFace(known.uuid, known.name, known.embeddings, color, color_hex)
+                self.detected_vizfaces.add(vizface)
+                self.face_table[known.uuid] = vizface
+                print("LEANRED!!!!")
+                return vizface
 
         # Not found, create a new one
         uid = str(uuid.uuid4())
         name = "Unknown"
-        color = self.palette[0]
-        color_hex = self.palette_hex[0]
-        learned = Face(uid, name, unknown)
+        color, color_hex = self.pick_face_color()
         vizface = VizFace(uid, name, unknown, color, color_hex)
-        self.learned_faces.add(learned)
         self.detected_vizfaces.add(vizface)
-        self.face_table[uid] = (learned, vizface)
-
-        # Update learned faces to model file
-        self.save_model()
-        print('New face learned!')
-        print("Learned faces: {}".format(len(self.learned_faces)))
+        self.face_table[uid] = vizface
 
         return vizface
+
+    # Pick a color for a new face
+    def pick_face_color(self):
+        color_index = len(self.detected_vizfaces) if len(self.detected_vizfaces) > 0 else 0
+        color = self.palette[color_index % 10]
+        color_hex = self.palette_hex[color_index % 10]
+
+        return color, color_hex
 
     def load_model(self):
         with open(model_path, "rb") as f:
