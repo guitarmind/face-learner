@@ -144,9 +144,11 @@ class FaceLearnerProtocol(WebSocketServerProtocol):
             if vizface is not None:
                 vizface.setName(msg['name'])
                 learned = Face(vizface.uuid, vizface.name, vizface.embeddings)
-                self.detected_vizfaces.remove(vizface)
+                if vizface in self.detected_vizfaces:
+                    self.detected_vizfaces.remove(vizface)
                 self.detected_vizfaces.add(vizface)
-                self.learned_faces.remove(learned)
+                if learned in self.learned_faces:
+                    self.learned_faces.remove(learned)
                 self.learned_faces.add(learned)
                 # Update model file
                 self.save_model()
