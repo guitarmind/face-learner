@@ -33,6 +33,10 @@ var people = {}, images = [];
 var colors = palette('cb-Paired', 10);
 var mq = 1;
 
+var canvas = document.createElement('canvas');
+canvas.width = vid.width;
+canvas.height = vid.height;
+
 function sendFrameLoop() {
     if (socket == null || socket.readyState != socket.OPEN || !vidReady) {
         return;
@@ -40,9 +44,6 @@ function sendFrameLoop() {
 
     if (mq > 0) {
         // capture snapshot image from video box
-        var canvas = document.createElement('canvas');
-        canvas.width = vid.width;
-        canvas.height = vid.height;
         var cc = canvas.getContext('2d');
         cc.drawImage(vid, 0, 0, vid.width, vid.height);
         var dataURL = canvas.toDataURL('image/jpeg', 0.6);
