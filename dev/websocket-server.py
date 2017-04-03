@@ -33,17 +33,14 @@ import urllib
 import base64
 import time
 import uuid
+from threading import Thread
 
 import pickle
 import os.path
 import face_recognition
 import tts
-from threading import Thread
 
-incoming_frame_width = 400
-incoming_frame_height = 300
-# Disable resize as it causes small faces hard to detect
-resize_ratio = 1
+thumbnail_size = 48
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--port', type=int, default=9000,
@@ -82,8 +79,7 @@ class Face:
         return "{{uuid: {}, name: {}, embeddings[0:5]: {}}}".format(
             self.uuid,
             self.name,
-            self.embeddings[0:5]
-        )
+            self.embeddings[0:5])
 
 # Unique face object for drawing
 class VizFace(Face):
@@ -98,8 +94,7 @@ class VizFace(Face):
             self.uuid,
             self.name,
             '#' + self.color_hex,
-            self.embeddings[0:5]
-        )
+            self.embeddings[0:5])
 
 class FaceLearnerProtocol(WebSocketServerProtocol):
 
@@ -182,6 +177,7 @@ class FaceLearnerProtocol(WebSocketServerProtocol):
         imgF.write(imgdata)
         imgF.seek(0)
         img = Image.open(imgF)
+        img_width, img_height = img.size
         print("Time spent on loading base64 image: {:.2f} ms".format(
             self.processing_time(start_time)
         ))
@@ -194,9 +190,15 @@ class FaceLearnerProtocol(WebSocketServerProtocol):
         print("Time spent on reversing image: {:.2f} ms".format(
             self.processing_time(start_time)
         ))
-        # Resize and convert BGR to GRAY for faster face detection
-        smallGrayFrame = cv2.resize(buf, (0,0), fx=1.0/resize_ratio, fy=1.0/resize_ratio)
-        grayFrame = cv2.cvtColor(smallGrayFrame, cv2.COLOR_BGR2GRAY)
+
+        start_time = time.time()
+        annotatedFrame = np.copy(rgbFrame)
+        print("Time spent on copying image: {:.2f} ms".format(
+            self.processing_time(start_time)
+        ))
+
+        # Convert BGR to GRAY for faster face detection
+        grayFrame = cv2.cvtColor(buf, cv2.COLOR_BGR2GRAY)
 
         ## Dectect Faces ##
 
@@ -218,26 +220,31 @@ class FaceLearnerProtocol(WebSocketServerProtocol):
         for(top, right, bottom, left), embeddings in zip(face_locations, face_encodings):
             result = self.face_lookup(embeddings)
             color = result.color
-            face = {
-                "uuid": result.uuid,
-                "color": result.color_hex,
-                "name": result.name
-            }
+            cropped = self.crop_rgbframe(rgbFrame, top, right, bottom, left, (img_width, img_height))
+            if cropped.size > 0:
+                resized = self.resize_rgbframe(cropped, thumbnail_size, thumbnail_size)
+                data_url = self.rgbframe_to_data_url(resized)
+                face = {
+                    "uuid": result.uuid,
+                    "color": result.color_hex,
+                    "name": result.name,
+                    "thumbnail": data_url
+                }
+            else:
+                face = {
+                    "uuid": result.uuid,
+                    "color": result.color_hex,
+                    "name": result.name
+                }
             frame_faces.append(face)
 
-            # Resize to original resolution
-            top = top * resize_ratio
-            right = right * resize_ratio
-            bottom = bottom * resize_ratio
-            left = left * resize_ratio
-
             # Draw a box around the face (color order: BGR)
-            cv2.rectangle(rgbFrame, (left, top), (right, bottom),
+            cv2.rectangle(annotatedFrame, (left, top), (right, bottom),
                 (color['b'], color['g'], color['r']), thickness=2)
 
             # Draw a labeled name below the face (color order: BGR)
             font = cv2.FONT_HERSHEY_DUPLEX
-            cv2.putText(rgbFrame, result.name, (left, top - 10), font, fontScale=0.75,
+            cv2.putText(annotatedFrame, result.name, (left, top - 10), font, fontScale=0.75,
                 color=(color['b'], color['g'], color['r']), thickness=2)
 
         print("Time spent on updating image: {:.2f} ms".format(
@@ -245,21 +252,34 @@ class FaceLearnerProtocol(WebSocketServerProtocol):
         ))
 
         start_time = time.time()
-        annotatedFrame = np.copy(rgbFrame)
-        print("Time spent on copying image: {:.2f} ms".format(
-            self.processing_time(start_time)
-        ))
-
-        start_time = time.time()
         # Generate image data url from annotated frame
-        png_encoded = cv2.imencode('.png', annotatedFrame)
-        content = 'data:image/png;base64,' + \
-            urllib.quote(base64.b64encode(png_encoded[1]))
+        content = self.rgbframe_to_data_url(annotatedFrame)
         print("Time spent on drawing image: {:.2f} ms".format(
             self.processing_time(start_time)
         ))
 
         return content, frame_faces
+
+    def rgbframe_to_data_url(self, frame):
+        png_encoded = cv2.imencode('.png', frame)
+        data_url = 'data:image/png;base64,' + \
+            urllib.quote(base64.b64encode(png_encoded[1]))
+        return(data_url)
+
+    def trim_to_bounds(self, rect, image_shape):
+        # Make sure a tuple in (top, right, bottom, left) order is within the bounds of the image
+        return max(rect[0], 0), min(rect[1], image_shape[1]), min(rect[2], image_shape[0]), max(rect[3], 0)
+
+    def crop_rgbframe(self, frame, top, right, bottom, left, image_shape):
+        top, right, bottom, left = self.trim_to_bounds((top, right, bottom, left), image_shape)
+        width = right - left
+        height = bottom - top
+        cropped = frame[top:(top + height), left:(left + width)]
+        return(cropped)
+
+    def resize_rgbframe(self, frame, width, height):
+        resized = cv2.resize(frame, (width,height))
+        return(resized)
 
     def processing_time(self, start_time):
         elapsed = (time.time() - start_time) * 1000 # ms

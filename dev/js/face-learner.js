@@ -109,17 +109,21 @@ function createSocket(address, name) {
                 if (tbody.find('#' + face['uuid']).length == 0) {
                     var row = (
                         '<tr>' +
-                        '<td>'+ (Object.keys(people).length + 1) +'</td>'+
+                        '<td>' + (Object.keys(people).length + 1) + '</td>' +
                         '<td>' +
                           '<div class="color-box round-corner" style="background-color: #' +
                             face['color'] + ';"></div>' +
-                        '</td>'+
-                        '<td>'+
+                        '</td>' +
+                        '<td>' +
                           '<div class="form-group col-sm-4">' +
                             '<input type="text" class="form-control" id="' + face['uuid'] + '" ' +
-                                'value="' + face['name'] +'">' +
+                                'value="' + face['name'] + '">' +
                           '</div>' +
-                        '</td>'+
+                        '</td>' +
+                        '<td>' +
+                          '<img id="' + face['uuid'] + '_thumbnail" ' +
+                               'src="' + face['thumbnail'] + '"></img>' +
+                        '</td>' +
                         '</tr>'
                     );
                     tbody.append(row);
@@ -131,6 +135,10 @@ function createSocket(address, name) {
                         'name': face['name'],
                         'color': face['color']
                     }
+                } else {
+                    // update thumbnail
+                    if (face['thumbnail'] != undefined)
+                        $('#' + face['uuid'] + '_thumbnail').attr("src", face['thumbnail']);
                 }
             }
 
