@@ -20,6 +20,8 @@ import StringIO
 parser = argparse.ArgumentParser()
 parser.add_argument('--text', type=str, default="Welcome back to office!",
                     help='input text')
+parser.add_argument('--key', type=str, default="tts.key",
+                    help='Bing Speech API key file path')
 args = parser.parse_args()
 
 def text_to_speech(text):
@@ -27,7 +29,7 @@ def text_to_speech(text):
   #Free: https://www.microsoft.com/cognitive-services/en-us/subscriptions?productId=/products/Bing.Speech.Preview
   #Paid: https://portal.azure.com/#create/Microsoft.CognitiveServices/apitype/Bing.Speech/pricingtier/S0
   apiKey = None
-  with open("tts.key", "rb") as f:
+  with open(args.key, "rb") as f:
     apiKey = f.readlines()[0]
 
   params = ""
