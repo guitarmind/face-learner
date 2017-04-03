@@ -11,104 +11,89 @@
 
 import httplib, urlparse, json
 from xml.etree import ElementTree
-import pyglet
 
-#Note: The way to get api key:
-#Free: https://www.microsoft.com/cognitive-services/en-us/subscriptions?productId=/products/Bing.Speech.Preview
-#Paid: https://portal.azure.com/#create/Microsoft.CognitiveServices/apitype/Bing.Speech/pricingtier/S0
-apiKey = None
-with open("tts.key", "rb") as f:
-  apiKey = f.readlines()[0]
-
-params = ""
-headers = {"Ocp-Apim-Subscription-Key": apiKey}
-
-#AccessTokenUri = "https://api.cognitive.microsoft.com/sts/v1.0/issueToken";
-AccessTokenHost = "api.cognitive.microsoft.com"
-path = "/sts/v1.0/issueToken"
-
-# Connect to server to get the Access Token
-print ("Connect to server to get the Access Token")
-conn = httplib.HTTPSConnection(AccessTokenHost)
-conn.request("POST", path, params, headers)
-response = conn.getresponse()
-print(response.status, response.reason)
-
-data = response.read()
-conn.close()
-
-accesstoken = data.decode("UTF-8")
-print ("Access Token: " + accesstoken)
-
-body = ElementTree.Element('speak', version='1.0')
-body.set('{http://www.w3.org/XML/1998/namespace}lang', 'en-us')
-voice = ElementTree.SubElement(body, 'voice')
-voice.set('{http://www.w3.org/XML/1998/namespace}lang', 'en-US')
-voice.set('{http://www.w3.org/XML/1998/namespace}gender', 'Female')
-voice.set('name', 'Microsoft Server Speech Text to Speech Voice (en-US, ZiraRUS)')
-voice.text = 'markpeng, welcome back to office!'
-
-headers = {"Content-type": "application/ssml+xml", 
-      # "X-Microsoft-OutputFormat": "audio-16khz-32kbitrate-mono-mp3", 
-      "X-Microsoft-OutputFormat": "riff-16khz-16bit-mono-pcm", 
-      "Authorization": "Bearer " + accesstoken, 
-      "X-Search-AppId": "07D3234E49CE426DAA29772419F436CA", 
-      "X-Search-ClientID": "1ECFAE91408841A480F00935DC390960", 
-      "User-Agent": "TTSForPython"}
-      
-#Connect to server to synthesize the wave
-print ("\nConnect to server to synthesize the wave")
-conn = httplib.HTTPSConnection("speech.platform.bing.com")
-conn.request("POST", "/synthesize", ElementTree.tostring(body), headers)
-response = conn.getresponse()
-print(response.status, response.reason)
-
-data = response.read()
-conn.close()
-
-print("The synthesized wave length: %d" %(len(data)))
-
-# def save_audio(data, file):
-#     with open(file, "wb") as f:
-#         f.write(data)
-#         f.close()
-# save_audio(data, "test.wav")
-# save_audio(data, "test.mp3")
-
-# # play audio
-# music = pyglet.resource.media("test.mp3")
-# music.play()
-# pyglet.app.run()
-
-# import pygame
-# import time
-# pygame.init()
-# pygame.mixer.init()
-# pygame.mixer.music.load("test.mp3")
-# pygame.mixer.music.play()
-# wait until finished
-# while pygame.mixer.music.get_busy() == True:
-#     continue
-
+import argparse
 import pyaudio
 import wave
 import StringIO
 
-buffer = StringIO.StringIO(data)
-chunk = 1024
-wf = wave.open(buffer, 'rb')
-# wf = wave.open('test.wav', 'rb')
-p = pyaudio.PyAudio()
-stream = p.open(
-    format = p.get_format_from_width(wf.getsampwidth()),
-    channels = wf.getnchannels(),
-    rate = wf.getframerate(),
-    output = True)
-data = wf.readframes(chunk)
-while data != '':
-    stream.write(data)
-    data = wf.readframes(chunk)
-stream.close()
-p.terminate()
+parser = argparse.ArgumentParser()
+parser.add_argument('--text', type=str, default="Welcome back to office!",
+                    help='input text')
+args = parser.parse_args()
 
+def text_to_speech(text):
+  #Note: The way to get api key:
+  #Free: https://www.microsoft.com/cognitive-services/en-us/subscriptions?productId=/products/Bing.Speech.Preview
+  #Paid: https://portal.azure.com/#create/Microsoft.CognitiveServices/apitype/Bing.Speech/pricingtier/S0
+  apiKey = None
+  with open("tts.key", "rb") as f:
+    apiKey = f.readlines()[0]
+
+  params = ""
+  headers = {"Ocp-Apim-Subscription-Key": apiKey}
+
+  #AccessTokenUri = "https://api.cognitive.microsoft.com/sts/v1.0/issueToken";
+  AccessTokenHost = "api.cognitive.microsoft.com"
+  path = "/sts/v1.0/issueToken"
+
+  # Connect to server to get the Access Token
+  print ("Connect to server to get the Access Token")
+  conn = httplib.HTTPSConnection(AccessTokenHost)
+  conn.request("POST", path, params, headers)
+  response = conn.getresponse()
+  print(response.status, response.reason)
+
+  data = response.read()
+  conn.close()
+
+  accesstoken = data.decode("UTF-8")
+  print ("Access Token: " + accesstoken)
+
+  body = ElementTree.Element('speak', version='1.0')
+  body.set('{http://www.w3.org/XML/1998/namespace}lang', 'en-us')
+  voice = ElementTree.SubElement(body, 'voice')
+  voice.set('{http://www.w3.org/XML/1998/namespace}lang', 'en-US')
+  voice.set('{http://www.w3.org/XML/1998/namespace}gender', 'Female')
+  voice.set('name', 'Microsoft Server Speech Text to Speech Voice (en-US, ZiraRUS)')
+  voice.text = text
+
+  headers = {"Content-type": "application/ssml+xml", 
+        "X-Microsoft-OutputFormat": "riff-16khz-16bit-mono-pcm", 
+        "Authorization": "Bearer " + accesstoken, 
+        "X-Search-AppId": "07D3234E49CE426DAA29772419F436CA", 
+        "X-Search-ClientID": "1ECFAE91408841A480F00935DC390960", 
+        "User-Agent": "TTSForPython"}
+        
+  #Connect to server to synthesize the wave
+  print ("\nConnect to server to synthesize the wave")
+  conn = httplib.HTTPSConnection("speech.platform.bing.com")
+  conn.request("POST", "/synthesize", ElementTree.tostring(body), headers)
+  response = conn.getresponse()
+  print(response.status, response.reason)
+
+  data = response.read()
+  conn.close()
+
+  play_wav_bytes(data)
+
+def play_wav_bytes(data):
+  buffer = StringIO.StringIO(data)
+  chunk = 1024
+  wf = wave.open(buffer, 'rb')
+  p = pyaudio.PyAudio()
+  stream = p.open(
+      format = p.get_format_from_width(wf.getsampwidth()),
+      channels = wf.getnchannels(),
+      rate = wf.getframerate(),
+      output = True)
+  data = wf.readframes(chunk)
+  while data != '':
+      stream.write(data)
+      data = wf.readframes(chunk)
+  stream.close()
+  p.terminate()
+
+if __name__ == '__main__':
+    text_to_speech(args.text)
 

@@ -2,6 +2,9 @@ dev/img/test_face.jpg
 face-learner.access.log
 face-learner.websocket.log
 *.pkl
+*.key
+*.wav
+*.mp3
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

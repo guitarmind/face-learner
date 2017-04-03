@@ -37,6 +37,8 @@ import uuid
 import pickle
 import os.path
 import face_recognition
+import tts
+from threading import Thread
 
 incoming_frame_width = 400
 incoming_frame_height = 300
@@ -138,6 +140,8 @@ class FaceLearnerProtocol(WebSocketServerProtocol):
                 "processing_time": "{:.2f}".format(self.processing_time(start_time))
             }
             self.sendMessage(json.dumps(msg))
+            # Notify frond-end to draw new frame
+            self.sendMessage('{"type": "PROCESSED"}')
         elif msg['type'] == "LABELED":
             # Update labeled name of learned face
             vizface = self.face_table[msg['uuid']]
@@ -154,6 +158,9 @@ class FaceLearnerProtocol(WebSocketServerProtocol):
                 self.save_model()
                 print('FACE LABELED!!!!')
                 print("Learned faces: {}".format(len(self.learned_faces)))
+
+                # Play voice
+                self.play_speech(vizface.name)
         elif msg['type'] == "PALETTE":
             start_time = time.time()
             colors = msg['colors']
@@ -314,6 +321,18 @@ class FaceLearnerProtocol(WebSocketServerProtocol):
     def L2_distance(self, faces, face_to_compare):
         return np.linalg.norm(faces - face_to_compare)
 
+    def play_speech(self, text):
+        thread = Thread(target=self.text_to_speech, args=(text,))
+        thread.daemon = True # Daemonize thread
+        thread.start()       # Start the execution
+
+    def text_to_speech(self, text):
+        start_time = time.time()
+        tts.text_to_speech("The face of {} has been labeled.".format(text))
+        print("Time spent on text to speech: {:.2f} ms".format(
+            self.processing_time(start_time)
+        ))
+        
 
 if __name__ == '__main__':
     log.startLogging(sys.stdout)
