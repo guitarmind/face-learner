@@ -259,15 +259,16 @@ class FaceLearnerProtocol(WebSocketServerProtocol):
         return(elapsed)
 
     def face_lookup(self, unknown):
+        tolerance = 0.6
         # Lookup from detected faces first
         for known in self.detected_vizfaces:
-            matched = self.compare_faces(known.embeddings, unknown)
+            matched = self.compare_faces(known.embeddings, unknown, tolerance)
             if matched:
                 print("DETECTED!!!!")
                 return known
 
         for known in self.learned_faces:
-            matched = self.compare_faces(known.embeddings, unknown)
+            matched = self.compare_faces(known.embeddings, unknown, tolerance)
             if matched:
                 color, color_hex = self.pick_face_color()
                 vizface = VizFace(known.uuid, known.name, known.embeddings, color, color_hex)
