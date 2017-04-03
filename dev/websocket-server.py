@@ -169,7 +169,6 @@ class FaceLearnerProtocol(WebSocketServerProtocol):
         print("WebSocket connection closed: {0}".format(reason))
 
     def processFrame(self, dataURL):
-        start_time = time.time()
         head = "data:image/jpeg;base64,"
         assert(dataURL.startswith(head))
         imgdata = base64.b64decode(dataURL[len(head):])
@@ -178,24 +177,14 @@ class FaceLearnerProtocol(WebSocketServerProtocol):
         imgF.seek(0)
         img = Image.open(imgF)
         img_width, img_height = img.size
-        print("Time spent on loading base64 image: {:.2f} ms".format(
-            self.processing_time(start_time)
-        ))
 
-        start_time = time.time()
         # Flip image horizontally
         buf = cv2.flip(np.asarray(img), flipCode=1)
         # Convert BGR to RGB
         rgbFrame = cv2.cvtColor(buf, cv2.COLOR_BGR2RGB)
-        print("Time spent on reversing image: {:.2f} ms".format(
-            self.processing_time(start_time)
-        ))
 
-        start_time = time.time()
+        # Make a copy for annotation
         annotatedFrame = np.copy(rgbFrame)
-        print("Time spent on copying image: {:.2f} ms".format(
-            self.processing_time(start_time)
-        ))
 
         # Convert BGR to GRAY for faster face detection
         grayFrame = cv2.cvtColor(buf, cv2.COLOR_BGR2GRAY)
@@ -214,7 +203,6 @@ class FaceLearnerProtocol(WebSocketServerProtocol):
             self.processing_time(start_time)
         ))
 
-        start_time = time.time()
         frame_faces = []
         print("Detected faces: {}".format(len(face_encodings)))
         for(top, right, bottom, left), embeddings in zip(face_locations, face_encodings):
@@ -247,14 +235,10 @@ class FaceLearnerProtocol(WebSocketServerProtocol):
             cv2.putText(annotatedFrame, result.name, (left, top - 10), font, fontScale=0.75,
                 color=(color['b'], color['g'], color['r']), thickness=2)
 
-        print("Time spent on updating image: {:.2f} ms".format(
-            self.processing_time(start_time)
-        ))
-
         start_time = time.time()
         # Generate image data url from annotated frame
         content = self.rgbframe_to_data_url(annotatedFrame)
-        print("Time spent on drawing image: {:.2f} ms".format(
+        print("Time spent on converting image to data url: {:.2f} ms".format(
             self.processing_time(start_time)
         ))
 
