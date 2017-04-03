@@ -38,17 +38,15 @@ def text_to_speech(text):
   path = "/sts/v1.0/issueToken"
 
   # Connect to server to get the Access Token
-  print ("Connect to server to get the Access Token")
   conn = httplib.HTTPSConnection(AccessTokenHost)
   conn.request("POST", path, params, headers)
   response = conn.getresponse()
-  print(response.status, response.reason)
+  # print(response.status, response.reason)
 
   data = response.read()
   conn.close()
 
   accesstoken = data.decode("UTF-8")
-  print ("Access Token: " + accesstoken)
 
   body = ElementTree.Element('speak', version='1.0')
   body.set('{http://www.w3.org/XML/1998/namespace}lang', 'en-us')
@@ -66,11 +64,10 @@ def text_to_speech(text):
         "User-Agent": "TTSForPython"}
         
   #Connect to server to synthesize the wave
-  print ("\nConnect to server to synthesize the wave")
   conn = httplib.HTTPSConnection("speech.platform.bing.com")
   conn.request("POST", "/synthesize", ElementTree.tostring(body), headers)
   response = conn.getresponse()
-  print(response.status, response.reason)
+  # print(response.status, response.reason)
 
   data = response.read()
   conn.close()
