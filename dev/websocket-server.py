@@ -52,10 +52,11 @@ model_path = args.model
 # Unique face object
 class Face:
 
-    def __init__(self, uuid, name, embeddings):
+    def __init__(self, uuid, name, embeddings, sample_count):
         self.uuid = uuid
         self.name = name
         self.embeddings = embeddings
+        self.sample_count = sample_count
 
     def __hash__(self):
         return hash(self.uuid)
@@ -72,25 +73,27 @@ class Face:
         self.name = name
 
     def __repr__(self):
-        return "{{uuid: {}, name: {}, embeddings[0:5]: {}}}".format(
+        return "{{uuid: {}, name: {}, embeddings[0:5]: {}, samples: {}}}".format(
             self.uuid,
             self.name,
-            self.embeddings[0:5])
+            self.embeddings[0:5],
+            self.sample_count)
 
 # Unique face object for drawing
 class VizFace(Face):
 
-    def __init__(self, uuid, name, embeddings, color, color_hex):
-        Face.__init__(self, uuid, name, embeddings)
+    def __init__(self, uuid, name, embeddings, sample_count, color, color_hex):
+        Face.__init__(self, uuid, name, embeddings, sample_count)
         self.color = color
         self.color_hex = color_hex
 
     def __repr__(self):
-        return "{{uuid: {}, name: {}, color: {}, embeddings[0:5]: {}}}".format(
+        return "{{uuid: {}, name: {}, color: {}, embeddings[0:5]: {}, samples: {}}}".format(
             self.uuid,
             self.name,
             '#' + self.color_hex,
-            self.embeddings[0:5])
+            self.embeddings[0:5],
+            self.sample_count)
 
 class FaceLearnerProtocol(WebSocketServerProtocol):
 
@@ -138,7 +141,7 @@ class FaceLearnerProtocol(WebSocketServerProtocol):
             vizface = self.face_table[msg['uuid']]
             if vizface is not None:
                 vizface.setName(msg['name'])
-                learned = Face(vizface.uuid, vizface.name, vizface.embeddings)
+                learned = Face(vizface.uuid, vizface.name, vizface.embeddings, vizface.sample_count)
                 if vizface in self.detected_vizfaces:
                     self.detected_vizfaces.remove(vizface)
                 self.detected_vizfaces.add(vizface)
@@ -153,11 +156,19 @@ class FaceLearnerProtocol(WebSocketServerProtocol):
                 # Play voice
                 self.play_speech(vizface.name)
         elif msg['type'] == "PALETTE":
-            start_time = time.time()
             colors = msg['colors']
             colors_hex = msg['colors_hex']
             self.palette = colors
             self.palette_hex = colors_hex
+        elif msg['type'] == "TRAINING":
+            start_time = time.time()
+            mode = msg['mode']
+            vizface = self.face_table[msg['uuid']]
+            if vizface is not None:
+                if mode == "on":
+                    print("Face trainging starts for {}".format(vizface.name))
+                else:
+                    print("Face trainging stopped for {}".format(vizface.name))
         else:
             print("Warning: Unknown message type: {}".format(msg['type']))
 
@@ -209,13 +220,15 @@ class FaceLearnerProtocol(WebSocketServerProtocol):
                     "uuid": result.uuid,
                     "color": result.color_hex,
                     "name": result.name,
-                    "thumbnail": data_url
+                    "thumbnail": data_url,
+                    "samples": result.sample_count
                 }
             else:
                 face = {
                     "uuid": result.uuid,
                     "color": result.color_hex,
-                    "name": result.name
+                    "name": result.name,
+                    "samples": result.sample_count
                 }
             frame_faces.append(face)
 
@@ -247,7 +260,8 @@ class FaceLearnerProtocol(WebSocketServerProtocol):
             matched = self.compare_faces(known.embeddings, unknown, tolerance)
             if matched:
                 color, color_hex = self.pick_face_color()
-                vizface = VizFace(known.uuid, known.name, known.embeddings, color, color_hex)
+                vizface = VizFace(known.uuid, known.name, known.embeddings, known.sample_count,
+                            color, color_hex)
                 self.detected_vizfaces.add(vizface)
                 self.face_table[known.uuid] = vizface
                 print("LEANRED!!!!")
@@ -257,7 +271,7 @@ class FaceLearnerProtocol(WebSocketServerProtocol):
         uid = str(uuid.uuid4())
         name = "Unknown"
         color, color_hex = self.pick_face_color()
-        vizface = VizFace(uid, name, unknown, color, color_hex)
+        vizface = VizFace(uid, name, unknown, 1, color, color_hex)
         self.detected_vizfaces.add(vizface)
         self.face_table[uid] = vizface
 

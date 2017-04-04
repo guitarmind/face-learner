@@ -81,6 +81,16 @@ function labelPersonCallback(e, id, text) {
     socket.send(JSON.stringify(msg)); 
 }
 
+function trainingToggleEvent(id, enabled) {
+    // send as message to websocket server
+    var msg = {
+        'type': 'TRAINING',
+        'mode': enabled ? "on" : "off",
+        'uuid': id
+    };
+    socket.send(JSON.stringify(msg)); 
+}
+
 function createSocket(address, name) {
     socket = new WebSocket(address);
     socketName = name;
@@ -130,6 +140,7 @@ function createSocket(address, name) {
                                'class="training-switch" ' +
                                'type="checkbox" checked ' +
                                'data-toggle="toggle" data-onstyle="success">' +
+                          '<span id="' + face['uuid'] + '_samples" class="medium"></span>' +
                         '</td>' +
                         '</tr>'
                     );
@@ -148,33 +159,46 @@ function createSocket(address, name) {
                     // bind toggle change event callback
                     toggle_element.change(function() {
                         var self = $(this);
+                        var self_uuid = self.prop('id').replace('_switch', '')
                         // disable all other toggles
                         $('.training-switch').each(function(index, obj) {
                             var e = $(this);
-                            var face_uuid = obj.id.replace('_switch', '')
+                            var e_uuid = obj.id.replace('_switch', '')
                             if (obj.id !== self.prop('id')) {
                                 if (self.prop('checked')) {
                                     e.bootstrapToggle('disable');
-                                    $('#' + face_uuid).prop('disabled', true);
+                                    $('#' + e_uuid).prop('disabled', true);
                                 } else {
                                     e.bootstrapToggle('enable');
-                                    $('#' + face_uuid).prop('disabled', false);
+                                    $('#' + e_uuid).prop('disabled', false);
                                 }
                             }
                         }, self);
+
+                        trainingToggleEvent(self_uuid, self.prop('checked'));
                     });
 
                     // bind press enter callback
                     $('#' + face['uuid']).pressEnter(labelPersonCallback);
 
+                    $('#' + face['uuid'] + '_samples').html(
+                        "<strong>&nbsp;&nbsp;&nbsp;" + face['samples'] + "</strong> samples captured."
+                    );
+
                     people[face['uuid']] = {
                         'name': face['name'],
-                        'color': face['color']
+                        'color': face['color'],
+                        'samples': face['samples']
                     }
                 } else {
                     // update thumbnail
                     if (face['thumbnail'] != undefined)
                         $('#' + face['uuid'] + '_thumbnail').attr("src", face['thumbnail']);
+
+                    // update face sample count
+                    $('#' + face['uuid'] + '_samples').html(
+                        "<strong>&nbsp;&nbsp;&nbsp;" + face['samples'] + "</strong> samples captured."
+                    );
                 }
             }
 
