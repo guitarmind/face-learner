@@ -125,9 +125,44 @@ function createSocket(address, name) {
                           '<img id="' + face['uuid'] + '_thumbnail" ' +
                                'src="' + face['thumbnail'] + '"></img>' +
                         '</td>' +
+                        '<td>' +
+                          '<input id="' + face['uuid'] + '_switch" ' +
+                               'class="training-switch" ' +
+                               'type="checkbox" checked ' +
+                               'data-toggle="toggle" data-onstyle="success">' +
+                        '</td>' +
                         '</tr>'
                     );
                     tbody.append(row);
+
+                    // initialize toggle control
+                    var toggle_id = face['uuid'] + '_switch';
+                    var toggle_element = $('#' + toggle_id);
+                    toggle_element.bootstrapToggle({
+                        on: 'On',
+                        off: 'Off',
+                        size: 'small'
+                    });
+                    toggle_element.bootstrapToggle('off');
+
+                    // bind toggle change event callback
+                    toggle_element.change(function() {
+                        var self = $(this);
+                        // disable all other toggles
+                        $('.training-switch').each(function(index, obj) {
+                            var e = $(this);
+                            var face_uuid = obj.id.replace('_switch', '')
+                            if (obj.id !== self.prop('id')) {
+                                if (self.prop('checked')) {
+                                    e.bootstrapToggle('disable');
+                                    $('#' + face_uuid).prop('disabled', true);
+                                } else {
+                                    e.bootstrapToggle('enable');
+                                    $('#' + face_uuid).prop('disabled', false);
+                                }
+                            }
+                        }, self);
+                    });
 
                     // bind press enter callback
                     $('#' + face['uuid']).pressEnter(labelPersonCallback);
