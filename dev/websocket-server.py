@@ -23,14 +23,8 @@ from twisted.python import log
 from twisted.internet import reactor
 
 import argparse
-import cv2
 import json
-from PIL import Image
 import numpy as np
-import os
-import StringIO
-import urllib
-import base64
 import time
 import uuid
 from threading import Thread
@@ -38,7 +32,9 @@ from threading import Thread
 import pickle
 import os.path
 import face_recognition
+
 import tts
+import face_processing as fp
 
 thumbnail_size = 48
 
@@ -127,7 +123,7 @@ class FaceLearnerProtocol(WebSocketServerProtocol):
             msg['type'], len(raw)))
         if msg['type'] == "FRAME":
             start_time = time.time()
-            content, faces = self.processFrame(msg['dataURL'])
+            content, faces = self.process_frame(msg['dataURL'])
             msg = {
                 "type": "ANNOTATED",
                 "content": content,
@@ -168,26 +164,23 @@ class FaceLearnerProtocol(WebSocketServerProtocol):
     def onClose(self, wasClean, code, reason):
         print("WebSocket connection closed: {0}".format(reason))
 
-    def processFrame(self, dataURL):
-        head = "data:image/jpeg;base64,"
-        assert(dataURL.startswith(head))
-        imgdata = base64.b64decode(dataURL[len(head):])
-        imgF = StringIO.StringIO()
-        imgF.write(imgdata)
-        imgF.seek(0)
-        img = Image.open(imgF)
+    def processing_time(self, start_time):
+        return (time.time() - start_time) * 1000 # ms
+
+    def process_frame(self, data_url):
+        img = fp.data_url_to_rgbframe(data_url)
         img_width, img_height = img.size
 
         # Flip image horizontally
-        buf = cv2.flip(np.asarray(img), flipCode=1)
+        flipped_frame = fp.flip_image(img)
         # Convert BGR to RGB
-        rgbFrame = cv2.cvtColor(buf, cv2.COLOR_BGR2RGB)
+        rgb_frame = fp.gbrframe_to_rgbframe(flipped_frame)
 
         # Make a copy for annotation
-        annotatedFrame = np.copy(rgbFrame)
+        annotated_frame = np.copy(rgb_frame)
 
         # Convert BGR to GRAY for faster face detection
-        grayFrame = cv2.cvtColor(buf, cv2.COLOR_BGR2GRAY)
+        grayFrame = fp.gbrframe_to_grayframe(flipped_frame)
 
         ## Dectect Faces ##
 
@@ -198,7 +191,7 @@ class FaceLearnerProtocol(WebSocketServerProtocol):
             self.processing_time(start_time)
         ))
         start_time = time.time()
-        face_encodings = face_recognition.face_encodings(rgbFrame, face_locations)
+        face_encodings = face_recognition.face_encodings(rgb_frame, face_locations)
         print("Time spent on extracting face embeddings: {:.2f} ms".format(
             self.processing_time(start_time)
         ))
@@ -208,10 +201,10 @@ class FaceLearnerProtocol(WebSocketServerProtocol):
         for(top, right, bottom, left), embeddings in zip(face_locations, face_encodings):
             result = self.face_lookup(embeddings)
             color = result.color
-            cropped = self.crop_rgbframe(rgbFrame, top, right, bottom, left, (img_width, img_height))
+            cropped = fp.crop_rgbframe(rgb_frame, top, right, bottom, left, (img_width, img_height))
             if cropped.size > 0:
-                resized = self.resize_rgbframe(cropped, thumbnail_size, thumbnail_size)
-                data_url = self.rgbframe_to_data_url(resized)
+                resized = fp.resize_rgbframe(cropped, thumbnail_size, thumbnail_size)
+                data_url = fp.rgbframe_to_data_url(resized)
                 face = {
                     "uuid": result.uuid,
                     "color": result.color_hex,
@@ -227,47 +220,19 @@ class FaceLearnerProtocol(WebSocketServerProtocol):
             frame_faces.append(face)
 
             # Draw a box around the face (color order: BGR)
-            cv2.rectangle(annotatedFrame, (left, top), (right, bottom),
-                (color['b'], color['g'], color['r']), thickness=2)
+            fp.draw_face_box(annotated_frame, color, top, right, bottom, left)
 
             # Draw a labeled name below the face (color order: BGR)
-            font = cv2.FONT_HERSHEY_DUPLEX
-            cv2.putText(annotatedFrame, result.name, (left, top - 10), font, fontScale=0.75,
-                color=(color['b'], color['g'], color['r']), thickness=2)
+            fp.draw_face_label_text(annotated_frame, result.name, color, top, right, bottom, left)
 
         start_time = time.time()
         # Generate image data url from annotated frame
-        content = self.rgbframe_to_data_url(annotatedFrame)
+        content = fp.rgbframe_to_data_url(annotated_frame)
         print("Time spent on converting image to data url: {:.2f} ms".format(
             self.processing_time(start_time)
         ))
 
         return content, frame_faces
-
-    def rgbframe_to_data_url(self, frame):
-        png_encoded = cv2.imencode('.png', frame)
-        data_url = 'data:image/png;base64,' + \
-            urllib.quote(base64.b64encode(png_encoded[1]))
-        return(data_url)
-
-    def trim_to_bounds(self, rect, image_shape):
-        # Make sure a tuple in (top, right, bottom, left) order is within the bounds of the image
-        return max(rect[0], 0), min(rect[1], image_shape[1]), min(rect[2], image_shape[0]), max(rect[3], 0)
-
-    def crop_rgbframe(self, frame, top, right, bottom, left, image_shape):
-        top, right, bottom, left = self.trim_to_bounds((top, right, bottom, left), image_shape)
-        width = right - left
-        height = bottom - top
-        cropped = frame[top:(top + height), left:(left + width)]
-        return(cropped)
-
-    def resize_rgbframe(self, frame, width, height):
-        resized = cv2.resize(frame, (width,height))
-        return(resized)
-
-    def processing_time(self, start_time):
-        elapsed = (time.time() - start_time) * 1000 # ms
-        return(elapsed)
 
     def face_lookup(self, unknown):
         tolerance = 0.6
@@ -319,11 +284,7 @@ class FaceLearnerProtocol(WebSocketServerProtocol):
                 protocol=pickle.HIGHEST_PROTOCOL)
 
     def compare_faces(self, known, unknown, tolerance=0.6):
-        return self.L2_distance(known, unknown) <= tolerance
-
-    # Compute Euclidean distance
-    def L2_distance(self, faces, face_to_compare):
-        return np.linalg.norm(faces - face_to_compare)
+        return fp.L2_distance(known, unknown) <= tolerance
 
     def play_speech(self, text):
         thread = Thread(target=self.text_to_speech, args=(text,))
@@ -336,7 +297,6 @@ class FaceLearnerProtocol(WebSocketServerProtocol):
         print("Time spent on text to speech: {:.2f} ms".format(
             self.processing_time(start_time)
         ))
-        
 
 if __name__ == '__main__':
     log.startLogging(sys.stdout)
