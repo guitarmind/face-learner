@@ -126,7 +126,7 @@ function createSocket(address, name) {
                             face['color'] + ';"></div>' +
                         '</td>' +
                         '<td>' +
-                          '<div class="form-group col-sm-4">' +
+                          '<div class="form-group col-sm-6">' +
                             '<input type="text" class="form-control" id="' + face['uuid'] + '" ' +
                                 'value="' + face['name'] + '">' +
                           '</div>' +
