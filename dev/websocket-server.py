@@ -209,13 +209,13 @@ class FaceLearnerProtocol(WebSocketServerProtocol):
         annotated_frame = np.copy(rgb_frame)
 
         # Convert BGR to GRAY for faster face detection
-        grayFrame = fp.gbrframe_to_grayframe(flipped_frame)
+        grayFrame = fp.gbrframe_to_grayframe(rgb_frame)
 
         ## Dectect Faces ##
 
         start_time = time.time()
         # Find all the faces and face enqcodings in the frame of Webcam
-        face_locations = face_recognition.face_locations(grayFrame)
+        face_locations = face_recognition.face_locations(rgb_frame)
         print("Time spent on detecting face: {:.2f} ms".format(
             self.processing_time(start_time)
         ))
