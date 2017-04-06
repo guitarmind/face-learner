@@ -228,33 +228,33 @@ class FaceLearnerProtocol(WebSocketServerProtocol):
         frame_faces = []
         print("Detected faces: {}".format(len(face_encodings)))
         for(top, right, bottom, left), embeddings in zip(face_locations, face_encodings):
-            result = self.face_lookup(embeddings)
+            result_face, distance = self.face_lookup(embeddings)
             sample_counter = 0
-            if self.training_face != None and result == self.training_face:
+            if self.training_face != None and result_face == self.training_face:
                 current_sum = self.training_embeddings['summation']
                 current_count = self.training_embeddings['count']
                 self.training_embeddings['summation'] = np.add(current_sum, embeddings)
                 self.training_embeddings['count'] = current_count + 1
                 sample_counter = self.training_embeddings['count']
 
-            color = result.color
+            color = result_face.color
             cropped = fp.crop_rgbframe(rgb_frame, top, right, bottom, left, (img_width, img_height))
             if cropped.size > 0:
                 resized = fp.resize_rgbframe(cropped, thumbnail_size, thumbnail_size)
                 data_url = fp.rgbframe_to_data_url(resized)
                 face = {
-                    "uuid": result.uuid,
-                    "color": result.color_hex,
-                    "name": result.name,
+                    "uuid": result_face.uuid,
+                    "color": result_face.color_hex,
+                    "name": result_face.name,
                     "thumbnail": data_url,
-                    "samples": result.samples + sample_counter
+                    "samples": result_face.samples + sample_counter
                 }
             else:
                 face = {
-                    "uuid": result.uuid,
-                    "color": result.color_hex,
-                    "name": result.name,
-                    "samples": result.samples + sample_counter
+                    "uuid": result_face.uuid,
+                    "color": result_face.color_hex,
+                    "name": result_face.name,
+                    "samples": result_face.samples + sample_counter
                 }
             frame_faces.append(face)
 
@@ -262,7 +262,11 @@ class FaceLearnerProtocol(WebSocketServerProtocol):
             fp.draw_face_box(annotated_frame, color, top, right, bottom, left)
 
             # Draw a labeled name below the face (color order: BGR)
-            fp.draw_face_label_text(annotated_frame, result.name, color, top, right, bottom, left)
+            fp.draw_face_label_text(annotated_frame, result_face.name, color, left, top - 10)
+
+            # Draw matched distance
+            fp.draw_face_label_text(annotated_frame, "{:.3f}".format(distance), color,
+                left + int((right - left) / 2) - 20, bottom + 20, 0.5, 1)
 
         start_time = time.time()
         # Generate image data url from annotated frame
@@ -277,13 +281,13 @@ class FaceLearnerProtocol(WebSocketServerProtocol):
         tolerance = 0.6
         # Lookup from detected faces first
         for known in self.detected_vizfaces:
-            matched = self.compare_faces(known.embeddings, unknown, tolerance)
+            matched, distance = self.compare_faces(known.embeddings, unknown, tolerance)
             if matched:
                 print("DETECTED!!!!")
-                return known
+                return known, distance
 
         for known in self.learned_faces:
-            matched = self.compare_faces(known.embeddings, unknown, tolerance)
+            matched, distance = self.compare_faces(known.embeddings, unknown, tolerance)
             if matched:
                 color, color_hex = self.pick_face_color()
                 vizface = VizFace(known.uuid, known.name, known.embeddings, known.samples,
@@ -291,7 +295,7 @@ class FaceLearnerProtocol(WebSocketServerProtocol):
                 self.detected_vizfaces.add(vizface)
                 self.face_table[known.uuid] = vizface
                 print("LEANRED!!!!")
-                return vizface
+                return vizface, distance
 
         # Not found, create a new one
         uid = str(uuid.uuid4())
@@ -301,7 +305,7 @@ class FaceLearnerProtocol(WebSocketServerProtocol):
         self.detected_vizfaces.add(vizface)
         self.face_table[uid] = vizface
 
-        return vizface
+        return vizface, 999
 
     # Pick a color for a new face
     def pick_face_color(self):
@@ -335,7 +339,8 @@ class FaceLearnerProtocol(WebSocketServerProtocol):
         self.save_model()
 
     def compare_faces(self, known, unknown, tolerance=0.6):
-        return fp.L2_distance(known, unknown) <= tolerance
+        distance = fp.L2_distance(known, unknown)
+        return distance <= tolerance, distance
 
     def play_speech(self, text):
         thread = Thread(target=self.text_to_speech, args=(text,))

@@ -54,10 +54,10 @@ def draw_face_box(frame, color, top, right, bottom, left):
     cv2.rectangle(frame, (left, top), (right, bottom),
                   (color['b'], color['g'], color['r']), thickness=2)
 
-def draw_face_label_text(frame, text, color, top, right, bottom, left):
+def draw_face_label_text(frame, text, color, x, y, fontScale=0.75, thickness=2):
     font = cv2.FONT_HERSHEY_DUPLEX
-    cv2.putText(frame, text, (left, top - 10), font, fontScale=0.75,
-                color=(color['b'], color['g'], color['r']), thickness=2)
+    cv2.putText(frame, text, (x, y), font, fontScale=fontScale,
+                color=(color['b'], color['g'], color['r']), thickness=thickness)
 
 # Compute Euclidean distance
 def L2_distance(faces, face_to_compare):
