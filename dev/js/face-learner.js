@@ -120,28 +120,28 @@ function createSocket(address, name) {
                 if (tbody.find('#' + face['uuid']).length == 0) {
                     var row = (
                         '<tr>' +
-                        '<td>' + (Object.keys(people).length + 1) + '</td>' +
-                        '<td>' +
-                          '<div class="color-box round-corner" style="background-color: #' +
-                            face['color'] + ';"></div>' +
-                        '</td>' +
-                        '<td>' +
-                          '<div class="form-group col-sm-6">' +
-                            '<input type="text" class="form-control" id="' + face['uuid'] + '" ' +
-                                'value="' + face['name'] + '">' +
-                          '</div>' +
-                        '</td>' +
-                        '<td>' +
-                          '<img id="' + face['uuid'] + '_thumbnail" ' +
-                               'src="' + face['thumbnail'] + '"></img>' +
-                        '</td>' +
-                        '<td>' +
-                          '<input id="' + face['uuid'] + '_switch" ' +
-                               'class="training-switch" ' +
-                               'type="checkbox" checked ' +
-                               'data-toggle="toggle" data-onstyle="success">' +
-                          '<span id="' + face['uuid'] + '_samples" class="medium"></span>' +
-                        '</td>' +
+                            '<td>' + (Object.keys(people).length + 1) + '</td>' +
+                            '<td>' +
+                                '<div class="color-box round-corner" style="background-color: #' +
+                                    face['color'] + ';"></div>' +
+                            '</td>' +
+                            '<td>' +
+                                '<div class="form-group col-sm-6">' +
+                                    '<input type="text" class="form-control" id="' + face['uuid'] + '" ' +
+                                        'value="' + face['name'] + '">' +
+                                '</div>' +
+                            '</td>' +
+                            '<td>' +
+                                '<img id="' + face['uuid'] + '_thumbnail" ' +
+                                    'src="' + face['thumbnail'] + '"></img>' +
+                            '</td>' +
+                            '<td>' +
+                                '<input id="' + face['uuid'] + '_switch" ' +
+                                    'class="training-switch" ' +
+                                    'type="checkbox" checked ' +
+                                    'data-toggle="toggle" data-onstyle="success">' +
+                                '<span id="' + face['uuid'] + '_samples" class="medium"></span>' +
+                            '</td>' +
                         '</tr>'
                     );
                     tbody.append(row);
@@ -149,11 +149,7 @@ function createSocket(address, name) {
                     // initialize toggle control
                     var toggle_id = face['uuid'] + '_switch';
                     var toggle_element = $('#' + toggle_id);
-                    toggle_element.bootstrapToggle({
-                        on: 'On',
-                        off: 'Off',
-                        size: 'small'
-                    });
+                    toggle_element.bootstrapToggle({ size: 'small' });
                     toggle_element.bootstrapToggle('off');
 
                     // bind toggle change event callback
