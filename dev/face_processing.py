@@ -60,5 +60,5 @@ def draw_face_label_text(frame, text, color, x, y, fontScale=0.75, thickness=2):
                 color=(color['b'], color['g'], color['r']), thickness=thickness)
 
 # Compute Euclidean distance
-def L2_distance(faces, face_to_compare):
-    return np.linalg.norm(faces - face_to_compare)
+def L2_distance(face, face_to_compare):
+    return np.linalg.norm(face - face_to_compare)

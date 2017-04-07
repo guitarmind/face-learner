@@ -177,6 +177,8 @@ class FaceLearnerProtocol(WebSocketServerProtocol):
                         average_embeddings = current_sum / current_count
                         # print("Averaged face embeddings: {}".format(average_embeddings))
                         # print("Original face embeddings: {}".format(self.training_face.embeddings))
+                        print("Distance between Averaged and Original face embeddings: {:.3f}".format(
+                            fp.L2_distance(average_embeddings, self.training_face.embeddings)))
 
                         # Update original vizface and learned face
                         vizface.setEmbeddings(average_embeddings)
@@ -230,7 +232,7 @@ class FaceLearnerProtocol(WebSocketServerProtocol):
         for(top, right, bottom, left), embeddings in zip(face_locations, face_encodings):
             result_face, distance = self.face_lookup(embeddings)
             sample_counter = 0
-            if self.training_face != None and result_face == self.training_face:
+            if self.training_face != None and result_face == self.training_face and len(face_locations) == 1:
                 current_sum = self.training_embeddings['summation']
                 current_count = self.training_embeddings['count']
                 self.training_embeddings['summation'] = np.add(current_sum, embeddings)
