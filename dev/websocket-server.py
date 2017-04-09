@@ -127,8 +127,8 @@ class FaceLearnerProtocol(WebSocketServerProtocol):
     def onMessage(self, payload, isBinary):
         raw = payload.decode('utf8')
         msg = json.loads(raw)
-        print("Received {} message of length {}.".format(
-            msg['type'], len(raw)))
+        # print("Received {} message of length {}.".format(
+        #     msg['type'], len(raw)))
         if msg['type'] == "FRAME":
             start_time = time.time()
             content, faces = self.process_frame(msg['dataURL'])
@@ -177,7 +177,7 @@ class FaceLearnerProtocol(WebSocketServerProtocol):
                         average_embeddings = current_sum / current_count
                         # print("Averaged face embeddings: {}".format(average_embeddings))
                         # print("Original face embeddings: {}".format(self.training_face.embeddings))
-                        print("Distance between Averaged and Original face embeddings: {:.3f}".format(
+                        print("[FACE MODELED] Distance between Averaged and Original face embeddings: {:.3f}".format(
                             fp.L2_distance(average_embeddings, self.training_face.embeddings)))
 
                         # Update original vizface and learned face
@@ -228,9 +228,13 @@ class FaceLearnerProtocol(WebSocketServerProtocol):
         ))
 
         frame_faces = []
-        print("Detected faces: {}".format(len(face_encodings)))
+        print("[NEW FRAME] Detected faces: {}".format(len(face_encodings)))
         for(top, right, bottom, left), embeddings in zip(face_locations, face_encodings):
+            start_time = time.time()
             result_face, distance = self.face_lookup(embeddings)
+            print("Time spent on face lookup: {:.2f} ms".format(
+                self.processing_time(start_time)
+            ))
             sample_counter = 0
             if self.training_face != None and result_face == self.training_face and len(face_locations) == 1:
                 current_sum = self.training_embeddings['summation']
@@ -280,14 +284,18 @@ class FaceLearnerProtocol(WebSocketServerProtocol):
         return content, frame_faces
 
     def face_lookup(self, unknown):
-        tolerance = 0.6
+        tolerance = 0.45
         # Lookup from detected faces first
+        matched_vizfaces = []
         for known in self.detected_vizfaces:
             matched, distance = self.compare_faces(known.embeddings, unknown, tolerance)
             if matched:
-                print("DETECTED!!!!")
-                return known, distance
+                matched_vizfaces.append((known, distance))
+        if len(matched_vizfaces) > 0:
+            known, min_dist = sorted(matched_vizfaces, key=lambda x: x[1])[0]
+            return known, min_dist
 
+        matched_learned_faces = []
         for known in self.learned_faces:
             matched, distance = self.compare_faces(known.embeddings, unknown, tolerance)
             if matched:
@@ -296,8 +304,10 @@ class FaceLearnerProtocol(WebSocketServerProtocol):
                             color, color_hex)
                 self.detected_vizfaces.add(vizface)
                 self.face_table[known.uuid] = vizface
-                print("LEANRED!!!!")
-                return vizface, distance
+                matched_learned_faces.append((vizface, distance))
+        if len(matched_learned_faces) > 0:
+            known, min_dist = sorted(matched_learned_faces, key=lambda x: x[1])[0]
+            return known, min_dist
 
         # Not found, create a new one
         uid = str(uuid.uuid4())
