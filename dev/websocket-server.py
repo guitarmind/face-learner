@@ -113,6 +113,8 @@ class FaceLearnerProtocol(WebSocketServerProtocol):
         self.detected_vizfaces = set()
         # A lookup table for drawn faces
         self.face_table = {}
+        # A lookup table for face name and uuid
+        self.name_table = {}
         # A reference to current training face
         self.training_face = None
         # Used for averaging the embeddings of same training face
@@ -142,16 +144,31 @@ class FaceLearnerProtocol(WebSocketServerProtocol):
             # Notify frond-end to draw new frame
             self.sendMessage('{"type": "PROCESSED"}')
         elif msg['type'] == "LABELED":
-            # Update labeled name of learned face
-            vizface = self.face_table[msg['uuid']]
-            if vizface is not None:
-                vizface.setName(msg['name'])
-                self.update_face_to_model(vizface)
-                print('FACE LABELED!!!!')
-                print("Learned faces: {}".format(len(self.learned_faces)))
-
-                # Play voice
-                self.play_speech(vizface.name)
+            if msg['name'] != "Unknown":
+                # Merge unknown face into known one if asked
+                if msg['name'] in self.name_table and msg['uuid'] != self.name_table[msg['name']]:
+                    print("hihihi!!!!!!!!!!!!!!!")
+                    labeled_face = self.face_table[self.name_table[msg['name']]]
+                    face_to_merge = self.face_table[msg['uuid']]
+                    labeled_face = self.merge_faces(labeled_face, face_to_merge)
+                    del self.face_table[msg['uuid']]
+                    self.detected_vizfaces.remove(face_to_merge)
+                    self.update_face_to_model(labeled_face)
+                    print('FACE MERGED!!!!')
+                    # Play voice
+                    self.play_speech("The face of {} has been merged.".format(labeled_face.name))
+                else:
+                    vizface = self.face_table[msg['uuid']]
+                    # Update labeled name of learned face
+                    if vizface is not None:
+                        vizface.setName(msg['name'])
+                        self.update_face_to_model(vizface)
+                        if not vizface.name in self.name_table:
+                            self.name_table[vizface.name] = vizface.uuid
+                        print('FACE LABELED!!!!')
+                        print("Learned faces: {}".format(len(self.learned_faces)))
+                        # Play voice
+                        self.play_speech("The face of {} has been labeled.".format(vizface.name))
         elif msg['type'] == "PALETTE":
             colors = msg['colors']
             colors_hex = msg['colors_hex']
@@ -331,6 +348,9 @@ class FaceLearnerProtocol(WebSocketServerProtocol):
         with open(model_path, "rb") as f:
             model = pickle.load(f)
             if model is not None:
+                print("Loaded model faces:")
+                for learned in model:
+                    print(learned.name, learned.samples)
                 print("Model face count: {}".format(len(model)))
                 self.learned_faces = model
 
@@ -354,6 +374,18 @@ class FaceLearnerProtocol(WebSocketServerProtocol):
         distance = fp.L2_distance(known, unknown)
         return distance <= tolerance, distance
 
+    def merge_faces(self, original, new):
+        if original.samples > 0 and new.samples >= 0:
+            new_count = 1
+            if new.samples > 0:
+                new_count = new.samples
+            total_counts = float(original.samples + new_count)
+            updated_embeddings = (original.samples / total_counts) * original.embeddings + \
+                (new_count / total_counts) * new.embeddings
+            original.setEmbeddings = updated_embeddings
+            original.setSamples = total_counts
+        return original
+
     def play_speech(self, text):
         thread = Thread(target=self.text_to_speech, args=(text,))
         thread.daemon = True # Daemonize thread
@@ -361,7 +393,7 @@ class FaceLearnerProtocol(WebSocketServerProtocol):
 
     def text_to_speech(self, text):
         start_time = time.time()
-        tts.text_to_speech("The face of {} has been labeled.".format(text))
+        tts.text_to_speech(text)
         print("Time spent on text to speech: {:.2f} ms".format(
             self.processing_time(start_time)
         ))
