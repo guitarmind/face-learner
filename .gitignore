@@ -5,6 +5,8 @@ face-learner.websocket.log
 *.key
 *.wav
 *.mp3
+.DS_Store
+debug/
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
