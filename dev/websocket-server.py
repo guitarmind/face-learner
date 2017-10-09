@@ -298,10 +298,11 @@ class FaceLearnerProtocol(WebSocketServerProtocol):
             self.processing_time(start_time)
         ))
 
-        return content, frame_faces
+        return content, frame_faces 
 
     def face_lookup(self, unknown):
-        tolerance = 0.45
+        # tolerance = 0.45
+        tolerance = 0.48
         # Lookup from detected faces first
         matched_vizfaces = []
         for known in self.detected_vizfaces:

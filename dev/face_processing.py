@@ -59,6 +59,9 @@ def draw_face_label_text(frame, text, color, x, y, fontScale=0.75, thickness=2):
     cv2.putText(frame, text, (x, y), font, fontScale=fontScale,
                 color=(color['b'], color['g'], color['r']), thickness=thickness)
 
+def frame_to_image_file(frame, folder_path, filename):
+    cv2.imwrite(os.path.join(folder_path , filename), frame)
+
 # Compute Euclidean distance
 def L2_distance(face, face_to_compare):
     return np.linalg.norm(face - face_to_compare)
