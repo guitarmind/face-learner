@@ -77,11 +77,11 @@ class WebcamClientProtocol(WebSocketClientProtocol):
         print("Height: ", height)
         print("Width: ", width)
 
-        resized_frame = fp.resize_rgbframe(frame, 80, 60)
-        print("Height: ", resized_frame.shape)
-        print("Width: ", resized_frame.shape)
+        # resized_frame = fp.resize_rgbframe(frame, 80, 60)
+        # print("Height: ", resized_frame.shape)
+        # print("Width: ", resized_frame.shape)
 
-        data_url = fp.rgbframe_to_data_url(resized_frame)
+        data_url = fp.rgbframe_to_data_url(frame)
 
         # msg = data_url
         # json_string = json.dumps(msg)
