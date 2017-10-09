@@ -14,11 +14,11 @@ from twisted.python import log
 from twisted.internet import reactor, ssl
 
 parser = argparse.ArgumentParser()
-parser.add_argument('--host', type=str, default="markpeng-test01.apps.exosite.io",
+parser.add_argument('--host', type=str, default="face-learner.apps.exosite.io",
                     help='Websocket server hostname')
 parser.add_argument('--port', type=int, default=443,
                     help='Websocket server port')
-parser.add_argument('--endpoint', type=str, default="wss://markpeng-test01.apps.exosite.io/webcam",
+parser.add_argument('--endpoint', type=str, default="/webcam",
                     help='Websocket endpoint to upload images (ws:// or wss://)')
 parser.add_argument('--folder', type=str, default="/Users/markpeng/Github/face-learner/dev/debug",
                     help='Image folder')
@@ -77,23 +77,20 @@ class WebcamClientProtocol(WebSocketClientProtocol):
         print("Height: ", height)
         print("Width: ", width)
 
-        # resized_frame = fp.resize_rgbframe(frame, cap_width, cap_height)
+        resized_frame = fp.resize_rgbframe(frame, 80, 60)
+        print("Height: ", resized_frame.shape)
+        print("Width: ", resized_frame.shape)
 
-        data_url = fp.rgbframe_to_data_url(frame)
-        msg = {
-            "type": "IMAGE",
-            "data_url": data_url
-        }
+        data_url = fp.rgbframe_to_data_url(resized_frame)
 
-        # print("Height: ", resized_frame.shape)
-        # print("Width: ", resized_frame.shape)
-
-        json_string = json.dumps(msg)
+        # msg = data_url
+        # json_string = json.dumps(msg)
         # print(json_string)
-        self.sendMessage(json_string)
+        # self.sendMessage(json_string)
+        self.sendMessage(data_url)
         # Save as file for debugging
-        filename = str(random.randint(0, 99999)) + ".png"
-        fp.frame_to_image_file(frame, args.folder, filename)
+        # filename = str(random.randint(0, 99999)) + ".png"
+        # fp.frame_to_image_file(frame, args.folder, filename)
 
         # send every 500ms
         self.factory.reactor.callLater(0.5, self.upload_image)
@@ -101,7 +98,8 @@ class WebcamClientProtocol(WebSocketClientProtocol):
 def main(argv):
     log.startLogging(sys.stdout)
 
-    factory = WebSocketClientFactory(args.endpoint)
+    ws_endpoint = "wss://{}{}".format(args.host, args.endpoint)
+    factory = WebSocketClientFactory(ws_endpoint)
     factory.protocol = WebcamClientProtocol
 
     # SSL client context: default
