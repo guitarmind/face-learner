@@ -7,6 +7,7 @@ import json
 import face_processing as fp
 import os
 import random
+import time
 
 from autobahn.twisted.websocket import WebSocketClientProtocol, \
     WebSocketClientFactory, connectWS
@@ -20,14 +21,10 @@ parser.add_argument('--port', type=int, default=443,
                     help='Websocket server port')
 parser.add_argument('--endpoint', type=str, default="/webcam",
                     help='Websocket endpoint to upload images (ws:// or wss://)')
-parser.add_argument('--folder', type=str, default="/Users/markpeng/Github/face-learner/dev/debug",
-                    help='Image folder')
 args = parser.parse_args()
 
 # Capture from camera at location 0
 cap = cv2.VideoCapture(0)
-# cap_width = 400
-# cap_height = 300
 cap_width = 320
 cap_height = 240
 # Customize camera resolution
@@ -82,15 +79,13 @@ class WebcamClientProtocol(WebSocketClientProtocol):
         # print("Width: ", resized_frame.shape)
 
         data_url = fp.rgbframe_to_data_url(frame)
-
-        # msg = data_url
-        # json_string = json.dumps(msg)
-        # print(json_string)
-        # self.sendMessage(json_string)
-        self.sendMessage(data_url)
-        # Save as file for debugging
-        # filename = str(random.randint(0, 99999)) + ".png"
-        # fp.frame_to_image_file(frame, args.folder, filename)
+        timestamp = time.time()
+        msg = {
+            'capture_time': timestamp,
+            'data_url': data_url
+        }
+        json_string = json.dumps(msg)
+        self.sendMessage(json_string)
 
         # send every 500ms
         self.factory.reactor.callLater(0.5, self.upload_image)
@@ -107,9 +102,6 @@ def main(argv):
         contextFactory = ssl.ClientContextFactory()
     else:
         contextFactory = None
-
-    if not os.path.exists(args.folder):
-        os.makedirs(args.folder)
 
     connectWS(factory, contextFactory)
     reactor.run()
