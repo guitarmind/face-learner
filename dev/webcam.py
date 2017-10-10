@@ -8,11 +8,21 @@ import face_processing as fp
 import os
 import random
 import time
+import uuid
+import pickle
 
 from autobahn.twisted.websocket import WebSocketClientProtocol, \
     WebSocketClientFactory, connectWS
 from twisted.python import log
 from twisted.internet import reactor, ssl
+from threading import Thread
+
+import face_detector as fd
+import tts
+
+# Custom Face Object
+from face import Face, VizFace
+
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--host', type=str, default="face-learner.apps.exosite.io",
@@ -21,7 +31,19 @@ parser.add_argument('--port', type=int, default=443,
                     help='Websocket server port')
 parser.add_argument('--endpoint', type=str, default="/webcam",
                     help='Websocket endpoint to upload images (ws:// or wss://)')
+parser.add_argument('--model', type=str, default="model/learned_faces.pkl",
+                    help='Model file path for learned faces')
 args = parser.parse_args()
+
+# Face thumbnail
+thumbnail_size = 48
+
+# Face model file
+model_path = args.model
+
+# Recognition tolerance
+# tolerance = 0.45
+tolerance = 0.48
 
 # Capture from camera at location 0
 cap = cv2.VideoCapture(0)
@@ -33,6 +55,15 @@ height_out = cap.set(cv2.cv.CV_CAP_PROP_FRAME_HEIGHT, cap_height)
 
 
 class WebcamClientProtocol(WebSocketClientProtocol):
+
+    def __init__(self):
+        # Call init function of WebSocketClientProtocol
+        super(self.__class__, self).__init__()
+        # Load learned model if found
+        if os.path.isfile(model_path):
+            self.load_model()
+        else:
+            self.learned_faces = set()
 
     def onConnect(self, response):
         print(response)
@@ -55,7 +86,6 @@ class WebcamClientProtocol(WebSocketClientProtocol):
 
     def onClose(self, wasClean, code, reason):
         print("WebSocket connection closed: {} (code: {})".format(reason, code))
-        reactor.stop()
 
     def onPing(self, payload):
         self.pingsReceived += 1
@@ -78,17 +108,34 @@ class WebcamClientProtocol(WebSocketClientProtocol):
         # print("Height: ", resized_frame.shape)
         # print("Width: ", resized_frame.shape)
 
+        # Detect faces inside image
+        annotated_data_url, frame_faces = fd.detect_faces(
+            frame, thumbnail_size, self.learned_faces, tolerance)
+
         data_url = fp.rgbframe_to_data_url(frame)
         timestamp = time.time()
         msg = {
             'capture_time': timestamp,
-            'data_url': data_url
+            # 'data_url': data_url
+            'data_url': annotated_data_url
         }
         json_string = json.dumps(msg)
         self.sendMessage(json_string)
 
         # send every 500ms
         self.factory.reactor.callLater(0.5, self.upload_image)
+
+    # Face Model #
+
+    def load_model(self):
+        with open(model_path, "rb") as f:
+            model = pickle.load(f)
+            if model is not None:
+                print("Loaded model faces:")
+                for learned in model:
+                    print(learned.name, learned.samples)
+                print("Model face count: {}".format(len(model)))
+                self.learned_faces = model
 
 def main(argv):
     log.startLogging(sys.stdout)

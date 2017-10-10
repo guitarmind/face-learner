@@ -21,10 +21,15 @@ def data_url_to_rgbframe(data_url):
     img = Image.open(imgF)
     return img
 
-def rgbframe_to_data_url(frame):
-    png_encoded = cv2.imencode('.png', frame)
-    data_url = 'data:image/png;base64,' + \
-        urllib.quote(base64.b64encode(png_encoded[1]))
+def rgbframe_to_data_url(frame, img_type="jpg"):
+    if img_type == "jpg":
+        encoded = cv2.imencode('.jpg', frame)
+        data_url = 'data:image/jpg;base64,' + \
+            urllib.quote(base64.b64encode(encoded[1]))
+    else:
+        encoded = cv2.imencode('.png', frame)
+        data_url = 'data:image/png;base64,' + \
+            urllib.quote(base64.b64encode(encoded[1]))
     return data_url
 
 def flip_image(img):
@@ -51,13 +56,21 @@ def resize_rgbframe(frame, width, height):
     return cv2.resize(frame, (width, height))
 
 def draw_face_box(frame, color, top, right, bottom, left):
-    cv2.rectangle(frame, (left, top), (right, bottom),
-                  (color['b'], color['g'], color['r']), thickness=2)
+    if isinstance(color, tuple):
+        cv2.rectangle(frame, (left, top), (right, bottom),
+            color, thickness=2)
+    else:
+        cv2.rectangle(frame, (left, top), (right, bottom),
+            (color['b'], color['g'], color['r']), thickness=2)
 
 def draw_face_label_text(frame, text, color, x, y, fontScale=0.75, thickness=2):
     font = cv2.FONT_HERSHEY_DUPLEX
-    cv2.putText(frame, text, (x, y), font, fontScale=fontScale,
-                color=(color['b'], color['g'], color['r']), thickness=thickness)
+    if isinstance(color, tuple):
+        cv2.putText(frame, text, (x, y), font, fontScale=fontScale,
+            color=color, thickness=thickness)
+    else:
+        cv2.putText(frame, text, (x, y), font, fontScale=fontScale,
+            color=(color['b'], color['g'], color['r']), thickness=thickness)
 
 def frame_to_image_file(frame, folder_path, filename):
     cv2.imwrite(os.path.join(folder_path , filename), frame)
