@@ -16,7 +16,10 @@ RUN apt-get update && apt-get install -y supervisor && \
     chmod 777 /run
 
 COPY . .
-RUN rm -rf /opt/app/* && \
+RUN mkdir -p /opt/face_learner/ && \
+    cp ./run /opt/face_learner/ && \
+    cd /opt/face_learner && \
+    rm -rf /opt/app/* && \
     chmod -R 777 /opt/app && \
     chmod -R 777 /opt/face_learner
 
