@@ -14,11 +14,6 @@
 
 import os
 import sys
-fileDir = os.path.dirname(os.path.realpath(__file__))
-sys.path.append(os.path.join(fileDir))
-# Assume to load from OpenFace docker image
-sys.path.append("/root/openface/")
-
 import txaio
 txaio.use_twisted()
 
@@ -28,80 +23,105 @@ from twisted.python import log
 from twisted.internet import reactor
 
 import argparse
-import cv2
-import imagehash
 import json
-from PIL import Image
 import numpy as np
-import os
-import StringIO
-import urllib
-import base64
 import time
+import uuid
+from threading import Thread
 
-from sklearn.decomposition import PCA
-from sklearn.grid_search import GridSearchCV
-from sklearn.manifold import TSNE
-from sklearn.svm import SVC
+import pickle
+import os.path
+import face_recognition
 
-import matplotlib as mpl
-mpl.use('Agg')
-import matplotlib.pyplot as plt
-import matplotlib.cm as cm
+import tts
+import face_processing as fp
 
-import openface
-
-# Assume to load from OpenFace docker image
-modelDir = "/root/openface/models"
-dlibModelDir = os.path.join(modelDir, 'dlib')
-openfaceModelDir = os.path.join(modelDir, 'openface')
+thumbnail_size = 48
 
 parser = argparse.ArgumentParser()
-parser.add_argument('--dlibFacePredictor', type=str, help="Path to dlib's face predictor.",
-                    default=os.path.join(dlibModelDir, "shape_predictor_68_face_landmarks.dat"))
-parser.add_argument('--networkModel', type=str, help="Path to Torch network model.",
-                    default=os.path.join(openfaceModelDir, 'nn4.small2.v1.t7'))
-parser.add_argument('--imgDim', type=int,
-                    help="Default image dimension.", default=96)
-parser.add_argument('--cuda', action='store_true')
-parser.add_argument('--unknown', type=bool, default=False,
-                    help='Try to predict unknown people')
 parser.add_argument('--port', type=int, default=9000,
                     help='WebSocket Port')
-
+parser.add_argument('--model', type=str, default="model/learned_faces.pkl",
+                    help='Model file path for learned faces')
 args = parser.parse_args()
 
-align = openface.AlignDlib(args.dlibFacePredictor)
-net = openface.TorchNeuralNet(args.networkModel, imgDim=args.imgDim,
-                              cuda=args.cuda)
+if not os.path.exists("model"):
+    os.makedirs("model")
+model_path = args.model
 
-
+# Unique face object
 class Face:
 
-    def __init__(self, rep, identity):
-        self.rep = rep
-        self.identity = identity
+    def __init__(self, uuid, name, embeddings, samples):
+        self.uuid = uuid
+        self.name = name
+        self.embeddings = embeddings
+        self.samples = samples
+
+    def __hash__(self):
+        return hash(self.uuid)
+
+    def __eq__(self, other):
+        return self.uuid == other.uuid
+
+    def setName(self, name):
+        self.name = name
+
+    def setEmbeddings(self, embeddings):
+        self.embeddings = embeddings
+
+    def setSamples(self, samples):
+        self.samples = samples
 
     def __repr__(self):
-        return "{{id: {}, rep[0:5]: {}}}".format(
-            str(self.identity),
-            self.rep[0:5]
-        )
+        return "{{uuid: {}, name: {}, embeddings[0:5]: {}, samples: {}}}".format(
+            self.uuid,
+            self.name,
+            self.embeddings[0:5],
+            self.samples)
 
+# Unique face object for drawing
+class VizFace(Face):
 
-class OpenFaceServerProtocol(WebSocketServerProtocol):
+    def __init__(self, uuid, name, embeddings, samples, color, color_hex):
+        Face.__init__(self, uuid, name, embeddings, samples)
+        self.color = color
+        self.color_hex = color_hex
+
+    def __repr__(self):
+        return "{{uuid: {}, name: {}, color: {}, embeddings[0:5]: {}, samples: {}}}".format(
+            self.uuid,
+            self.name,
+            '#' + self.color_hex,
+            self.embeddings[0:5],
+            self.samples)
+
+class FaceLearnerProtocol(WebSocketServerProtocol):
 
     def __init__(self):
+        # Call init function of WebSocketServerProtocol
+        super(self.__class__, self).__init__()
         self.images = {}
-        self.training = True
-        self.people = []
-        self.svm = None
-        # if args.unknown:
-        #     self.unknownImgs = np.load("./examples/web/unknown.npy")
+        self.palette = []
+        self.palette_hex = []
+        # Load learned model if found
+        if os.path.isfile(model_path):
+            self.load_model()
+        else:
+            self.learned_faces = set()
+        # A cache set of detected faces for drawing
+        self.detected_vizfaces = set()
+        # A lookup table for drawn faces
+        self.face_table = {}
+        # A lookup table for face name and uuid
+        self.name_table = {}
+        # A reference to current training face
+        self.training_face = None
+        # Used for averaging the embeddings of same training face
+        self.training_embeddings = None
 
     def onConnect(self, request):
         print("Client connecting: {0}".format(request.peer))
-        self.training = True
 
     def onOpen(self):
         print("WebSocket connection open.")
@@ -109,288 +129,281 @@ class OpenFaceServerProtocol(WebSocketServerProtocol):
     def onMessage(self, payload, isBinary):
         raw = payload.decode('utf8')
         msg = json.loads(raw)
-        print("Received {} message of length {}.".format(
-            msg['type'], len(raw)))
-        if msg['type'] == "ALL_STATE":
-            self.loadState(msg['images'], msg['training'], msg['people'])
-        elif msg['type'] == "NULL":
-            self.sendMessage('{"type": "NULL"}')
-        elif msg['type'] == "FRAME":
-            self.processFrame(msg['dataURL'], msg['identity'])
+        # print("Received {} message of length {}.".format(
+        #     msg['type'], len(raw)))
+        if msg['type'] == "FRAME":
+            start_time = time.time()
+            content, faces = self.process_frame(msg['dataURL'])
+            msg = {
+                "type": "ANNOTATED",
+                "content": content,
+                "frame_faces": faces,
+                "processing_time": "{:.2f}".format(self.processing_time(start_time))
+            }
+            self.sendMessage(json.dumps(msg))
+            # Notify frond-end to draw new frame
             self.sendMessage('{"type": "PROCESSED"}')
+        elif msg['type'] == "LABELED":
+            if msg['name'] != "Unknown":
+                # Merge unknown face into known one if asked
+                if msg['name'] in self.name_table and msg['uuid'] != self.name_table[msg['name']]:
+                    print("hihihi!!!!!!!!!!!!!!!")
+                    labeled_face = self.face_table[self.name_table[msg['name']]]
+                    face_to_merge = self.face_table[msg['uuid']]
+                    labeled_face = self.merge_faces(labeled_face, face_to_merge)
+                    del self.face_table[msg['uuid']]
+                    self.detected_vizfaces.remove(face_to_merge)
+                    self.update_face_to_model(labeled_face)
+                    print('FACE MERGED!!!!')
+                    # Play voice
+                    self.play_speech("The face of {} has been merged.".format(labeled_face.name))
+                else:
+                    vizface = self.face_table[msg['uuid']]
+                    # Update labeled name of learned face
+                    if vizface is not None:
+                        vizface.setName(msg['name'])
+                        self.update_face_to_model(vizface)
+                        if not vizface.name in self.name_table:
+                            self.name_table[vizface.name] = vizface.uuid
+                        print('FACE LABELED!!!!')
+                        print("Learned faces: {}".format(len(self.learned_faces)))
+                        # Play voice
+                        self.play_speech("The face of {} has been labeled.".format(vizface.name))
+        elif msg['type'] == "PALETTE":
+            colors = msg['colors']
+            colors_hex = msg['colors_hex']
+            self.palette = colors
+            self.palette_hex = colors_hex
         elif msg['type'] == "TRAINING":
-            self.training = msg['val']
-            if not self.training:
-                self.trainSVM()
-        elif msg['type'] == "ADD_PERSON":
-            self.people.append(msg['val'].encode('ascii', 'ignore'))
-            print(self.people)
-        elif msg['type'] == "UPDATE_IDENTITY":
-            h = msg['hash'].encode('ascii', 'ignore')
-            if h in self.images:
-                self.images[h].identity = msg['idx']
-                if not self.training:
-                    self.trainSVM()
-            else:
-                print("Image not found.")
-        elif msg['type'] == "REMOVE_IMAGE":
-            h = msg['hash'].encode('ascii', 'ignore')
-            if h in self.images:
-                del self.images[h]
-                if not self.training:
-                    self.trainSVM()
-            else:
-                print("Image not found.")
-        elif msg['type'] == 'REQ_TSNE':
-            self.sendTSNE(msg['people'])
+            start_time = time.time()
+            mode = msg['mode']
+            vizface = self.face_table[msg['uuid']]
+            if vizface is not None:
+                if mode == "on":
+                    self.training_face = vizface
+                    self.training_embeddings = {
+                        "summation" : vizface.embeddings,
+                        "count" : 0
+                    }
+                    print("Face trainging starts for {}".format(vizface.name))
+                else:
+                    current_sum = self.training_embeddings['summation']
+                    current_count = self.training_embeddings['count']
+
+                    if current_count > 0:
+                        average_embeddings = current_sum / current_count
+                        # print("Averaged face embeddings: {}".format(average_embeddings))
+                        # print("Original face embeddings: {}".format(self.training_face.embeddings))
+                        print("[FACE MODELED] Distance between Averaged and Original face embeddings: {:.3f}".format(
+                            fp.L2_distance(average_embeddings, self.training_face.embeddings)))
+
+                        # Update original vizface and learned face
+                        vizface.setEmbeddings(average_embeddings)
+                        vizface.setSamples(vizface.samples + current_count)
+                        self.update_face_to_model(vizface)
+
+                    # Reset all training variables
+                    self.training_face = None
+                    self.training_embeddings = None
+                    print("Face trainging stopped for {}".format(vizface.name))
         else:
             print("Warning: Unknown message type: {}".format(msg['type']))
 
     def onClose(self, wasClean, code, reason):
         print("WebSocket connection closed: {0}".format(reason))
 
-    def loadState(self, jsImages, training, jsPeople):
-        self.training = training
+    def processing_time(self, start_time):
+        return (time.time() - start_time) * 1000 # ms
 
-        for jsImage in jsImages:
-            h = jsImage['hash'].encode('ascii', 'ignore')
-            self.images[h] = Face(np.array(jsImage['representation']),
-                                  jsImage['identity'])
+    def process_frame(self, data_url):
+        img = fp.data_url_to_rgbframe(data_url)
+        img_width, img_height = img.size
 
-        for jsPerson in jsPeople:
-            self.people.append(jsPerson.encode('ascii', 'ignore'))
+        # Flip image horizontally
+        flipped_frame = fp.flip_image(img)
+        # Convert BGR to RGB
+        rgb_frame = fp.gbrframe_to_rgbframe(flipped_frame)
 
-        if not training:
-            self.trainSVM()
+        # Make a copy for annotation
+        annotated_frame = np.copy(rgb_frame)
 
-    def getData(self):
-        X = []
-        y = []
-        for img in self.images.values():
-            X.append(img.rep)
-            y.append(img.identity)
+        # Convert BGR to GRAY for faster face detection
+        grayFrame = fp.gbrframe_to_grayframe(rgb_frame)
 
-        numIdentities = len(set(y + [-1])) - 1
-        if numIdentities == 0:
-            return None
+        ## Dectect Faces ##
 
-        if args.unknown:
-            numUnknown = y.count(-1)
-            numIdentified = len(y) - numUnknown
-            numUnknownAdd = (numIdentified / numIdentities) - numUnknown
-            if numUnknownAdd > 0:
-                print("+ Augmenting with {} unknown images.".format(numUnknownAdd))
-                for rep in self.unknownImgs[:numUnknownAdd]:
-                    # print(rep)
-                    X.append(rep)
-                    y.append(-1)
-
-        X = np.vstack(X)
-        y = np.array(y)
-        return (X, y)
-
-    def sendTSNE(self, people):
-        d = self.getData()
-        if d is None:
-            return
-        else:
-            (X, y) = d
-
-        X_pca = PCA(n_components=50).fit_transform(X, X)
-        tsne = TSNE(n_components=2, init='random', random_state=0)
-        X_r = tsne.fit_transform(X_pca)
-
-        yVals = list(np.unique(y))
-        colors = cm.rainbow(np.linspace(0, 1, len(yVals)))
-
-        # print(yVals)
-
-        plt.figure()
-        for c, i in zip(colors, yVals):
-            name = "Unknown" if i == -1 else people[i]
-            plt.scatter(X_r[y == i, 0], X_r[y == i, 1], c=c, label=name)
-            plt.legend()
-
-        imgdata = StringIO.StringIO()
-        plt.savefig(imgdata, format='png')
-        imgdata.seek(0)
-
-        content = 'data:image/png;base64,' + \
-                  urllib.quote(base64.b64encode(imgdata.buf))
-        msg = {
-            "type": "TSNE_DATA",
-            "content": content
-        }
-        self.sendMessage(json.dumps(msg))
-
-    def trainSVM(self):
-        print("+ Training SVM on {} labeled images.".format(len(self.images)))
-        d = self.getData()
-        if d is None:
-            self.svm = None
-            return
-        else:
-            (X, y) = d
-            numIdentities = len(set(y + [-1]))
-            if numIdentities <= 1:
-                return
-
-            param_grid = [
-                {'C': [1, 10, 100, 1000],
-                 'kernel': ['linear']},
-                {'C': [1, 10, 100, 1000],
-                 'gamma': [0.001, 0.0001],
-                 'kernel': ['rbf']}
-            ]
-            self.svm = GridSearchCV(SVC(C=1), param_grid, cv=5).fit(X, y)
-
-    def processFrame(self, dataURL, identity):
-        process_frame_start_time = time.time()
-        head = "data:image/jpeg;base64,"
-        assert(dataURL.startswith(head))
-        imgdata = base64.b64decode(dataURL[len(head):])
-        imgF = StringIO.StringIO()
-        imgF.write(imgdata)
-        imgF.seek(0)
-        img = Image.open(imgF)
-
-        buf = np.fliplr(np.asarray(img))
-        rgbFrame = np.zeros((300, 400, 3), dtype=np.uint8)
-        rgbFrame[:, :, 0] = buf[:, :, 2]
-        rgbFrame[:, :, 1] = buf[:, :, 1]
-        rgbFrame[:, :, 2] = buf[:, :, 0]
-
-        if not self.training:
-            annotatedFrame = np.copy(buf)
-
-        # cv2.imshow('frame', rgbFrame)
-        # if cv2.waitKey(1) & 0xFF == ord('q'):
-        #     return
-
-        identities = []
-        # bbs = align.getAllFaceBoundingBoxes(rgbFrame)
         start_time = time.time()
-        bb = align.getLargestFaceBoundingBox(rgbFrame)
-        print("Time spent on detecting largest face: {:.2f} ms".format(
+        # Find all the faces and face enqcodings in the frame of Webcam
+        face_locations = face_recognition.face_locations(rgb_frame)
+        print("Time spent on detecting face: {:.2f} ms".format(
+            self.processing_time(start_time)
+        ))
+        start_time = time.time()
+        face_encodings = face_recognition.face_encodings(rgb_frame, face_locations)
+        print("Time spent on extracting face embeddings: {:.2f} ms".format(
             self.processing_time(start_time)
         ))
 
-        bbs = [bb] if bb is not None else []
-        for bb in bbs:
-            # print(len(bbs))
+        frame_faces = []
+        print("[NEW FRAME] Detected faces: {}".format(len(face_encodings)))
+        for(top, right, bottom, left), embeddings in zip(face_locations, face_encodings):
             start_time = time.time()
-            landmarks = align.findLandmarks(rgbFrame, bb)
-            print("Time spent on finding face landmarks: {:.2f} ms".format(
+            result_face, distance = self.face_lookup(embeddings)
+            print("Time spent on face lookup: {:.2f} ms".format(
                 self.processing_time(start_time)
             ))
+            sample_counter = 0
+            if self.training_face != None and result_face == self.training_face and len(face_locations) == 1:
+                current_sum = self.training_embeddings['summation']
+                current_count = self.training_embeddings['count']
+                self.training_embeddings['summation'] = np.add(current_sum, embeddings)
+                self.training_embeddings['count'] = current_count + 1
+                sample_counter = self.training_embeddings['count']
 
-            start_time = time.time()
-            alignedFace = align.align(args.imgDim, rgbFrame, bb,
-                                      landmarks=landmarks,
-                                      landmarkIndices=openface.AlignDlib.OUTER_EYES_AND_NOSE)
-            print("Time spent on aligning face: {:.2f} ms".format(
-                self.processing_time(start_time)
-            ))
-
-            if alignedFace is None:
-                continue
-
-            phash = str(imagehash.phash(Image.fromarray(alignedFace)))
-            if phash in self.images:
-                identity = self.images[phash].identity
+            color = result_face.color
+            cropped = fp.crop_rgbframe(rgb_frame, top, right, bottom, left, (img_width, img_height))
+            if cropped.size > 0:
+                resized = fp.resize_rgbframe(cropped, thumbnail_size, thumbnail_size)
+                data_url = fp.rgbframe_to_data_url(resized)
+                face = {
+                    "uuid": result_face.uuid,
+                    "color": result_face.color_hex,
+                    "name": result_face.name,
+                    "thumbnail": data_url,
+                    "samples": result_face.samples + sample_counter
+                }
             else:
-                start_time = time.time()
-                rep = net.forward(alignedFace)
-                print("Time spent on face representation: {:.2f} ms".format(
-                    self.processing_time(start_time)
-                ))
+                face = {
+                    "uuid": result_face.uuid,
+                    "color": result_face.color_hex,
+                    "name": result_face.name,
+                    "samples": result_face.samples + sample_counter
+                }
+            frame_faces.append(face)
 
-                # print(rep)
-                if self.training:
-                    self.images[phash] = Face(rep, identity)
-                    # TODO: Transferring as a string is suboptimal.
-                    # content = [str(x) for x in cv2.resize(alignedFace, (0,0),
-                    # fx=0.5, fy=0.5).flatten()]
-                    content = [str(x) for x in alignedFace.flatten()]
-                    msg = {
-                        "type": "NEW_IMAGE",
-                        "hash": phash,
-                        "content": content,
-                        "identity": identity,
-                        "representation": rep.tolist()
-                    }
-                    self.sendMessage(json.dumps(msg))
-                else:
-                    if len(self.people) == 0:
-                        identity = -1
-                    elif len(self.people) == 1:
-                        identity = 0
-                    elif self.svm:
-                        identity = self.svm.predict(rep)[0]
-                    else:
-                        print("hhh")
-                        identity = -1
-                    if identity not in identities:
-                        identities.append(identity)
+            # Draw a box around the face (color order: BGR)
+            fp.draw_face_box(annotated_frame, color, top, right, bottom, left)
 
-            if not self.training:
-                bl = (bb.left(), bb.bottom())
-                tr = (bb.right(), bb.top())
-                cv2.rectangle(annotatedFrame, bl, tr, color=(153, 255, 204),
-                              thickness=3)
-                for p in openface.AlignDlib.OUTER_EYES_AND_NOSE:
-                    cv2.circle(annotatedFrame, center=landmarks[p], radius=3,
-                               color=(102, 204, 255), thickness=-1)
-                if identity == -1:
-                    if len(self.people) == 1:
-                        name = self.people[0]
-                    else:
-                        name = "Unknown"
-                else:
-                    name = self.people[identity]
-                cv2.putText(annotatedFrame, name, (bb.left(), bb.top() - 10),
-                            cv2.FONT_HERSHEY_SIMPLEX, fontScale=0.75,
-                            color=(152, 255, 204), thickness=2)
+            # Draw a labeled name below the face (color order: BGR)
+            fp.draw_face_label_text(annotated_frame, result_face.name, color, left, top - 10)
 
-        if not self.training:
-            msg = {
-                "type": "IDENTITIES",
-                "identities": identities
-            }
-            self.sendMessage(json.dumps(msg))
+            # Draw matched distance
+            fp.draw_face_label_text(annotated_frame, "{:.3f}".format(distance), color,
+                left + int((right - left) / 2) - 20, bottom + 20, 0.5, 1)
 
-            start_time = time.time()
-            plt.figure()
-            plt.imshow(annotatedFrame)
-            plt.xticks([])
-            plt.yticks([])
+        start_time = time.time()
+        # Generate image data url from annotated frame
+        content = fp.rgbframe_to_data_url(annotated_frame)
+        print("Time spent on converting image to data url: {:.2f} ms".format(
+            self.processing_time(start_time)
+        ))
 
-            imgdata = StringIO.StringIO()
-            plt.savefig(imgdata, format='png')
-            print("Time spent on updating image: {:.2f} ms".format(
-                self.processing_time(start_time)
-            ))
+        return content, frame_faces 
 
-            imgdata.seek(0)
-            content = 'data:image/png;base64,' + \
-                urllib.quote(base64.b64encode(imgdata.buf))
-            msg = {
-                "type": "ANNOTATED",
-                "content": content,
-                "processing_time": "{:.2f}".format(self.processing_time(process_frame_start_time))
-            }
-            plt.close()
-            self.sendMessage(json.dumps(msg))
-    def processing_time(self, start_time):
-        elapsed = (time.time() - start_time) * 1000 # ms
-        return(elapsed)
+    def face_lookup(self, unknown):
+        # tolerance = 0.45
+        tolerance = 0.48
+        # Lookup from detected faces first
+        matched_vizfaces = []
+        for known in self.detected_vizfaces:
+            matched, distance = self.compare_faces(known.embeddings, unknown, tolerance)
+            if matched:
+                matched_vizfaces.append((known, distance))
+        if len(matched_vizfaces) > 0:
+            known, min_dist = sorted(matched_vizfaces, key=lambda x: x[1])[0]
+            return known, min_dist
+
+        matched_learned_faces = []
+        for known in self.learned_faces:
+            matched, distance = self.compare_faces(known.embeddings, unknown, tolerance)
+            if matched:
+                color, color_hex = self.pick_face_color()
+                vizface = VizFace(known.uuid, known.name, known.embeddings, known.samples,
+                            color, color_hex)
+                self.detected_vizfaces.add(vizface)
+                self.face_table[known.uuid] = vizface
+                matched_learned_faces.append((vizface, distance))
+        if len(matched_learned_faces) > 0:
+            known, min_dist = sorted(matched_learned_faces, key=lambda x: x[1])[0]
+            return known, min_dist
+
+        # Not found, create a new one
+        uid = str(uuid.uuid4())
+        name = "Unknown"
+        color, color_hex = self.pick_face_color()
+        vizface = VizFace(uid, name, unknown, 0, color, color_hex)
+        self.detected_vizfaces.add(vizface)
+        self.face_table[uid] = vizface
+
+        return vizface, 999
+
+    # Pick a color for a new face
+    def pick_face_color(self):
+        color_index = len(self.detected_vizfaces) if len(self.detected_vizfaces) > 0 else 0
+        color = self.palette[color_index % 10]
+        color_hex = self.palette_hex[color_index % 10]
+
+        return color, color_hex
+
+    def load_model(self):
+        with open(model_path, "rb") as f:
+            model = pickle.load(f)
+            if model is not None:
+                print("Loaded model faces:")
+                for learned in model:
+                    print(learned.name, learned.samples)
+                print("Model face count: {}".format(len(model)))
+                self.learned_faces = model
+
+    def save_model(self):
+        with open(model_path, "wb") as f:
+            pickle.dump(self.learned_faces, f,
+                protocol=pickle.HIGHEST_PROTOCOL)
+
+    def update_face_to_model(self, vizface):
+        learned = Face(vizface.uuid, vizface.name, vizface.embeddings, vizface.samples)
+        if vizface in self.detected_vizfaces:
+            self.detected_vizfaces.remove(vizface)
+        self.detected_vizfaces.add(vizface)
+        if learned in self.learned_faces:
+            self.learned_faces.remove(learned)
+        self.learned_faces.add(learned)
+        # Update model file
+        self.save_model()
+
+    def compare_faces(self, known, unknown, tolerance=0.6):
+        distance = fp.L2_distance(known, unknown)
+        return distance <= tolerance, distance
+
+    def merge_faces(self, original, new):
+        if original.samples > 0 and new.samples >= 0:
+            new_count = 1
+            if new.samples > 0:
+                new_count = new.samples
+            total_counts = float(original.samples + new_count)
+            updated_embeddings = (original.samples / total_counts) * original.embeddings + \
+                (new_count / total_counts) * new.embeddings
+            original.setEmbeddings = updated_embeddings
+            original.setSamples = total_counts
+        return original
+
+    def play_speech(self, text):
+        thread = Thread(target=self.text_to_speech, args=(text,))
+        thread.daemon = True # Daemonize thread
+        thread.start()       # Start the execution
+
+    def text_to_speech(self, text):
+        start_time = time.time()
+        tts.text_to_speech(text)
+        print("Time spent on text to speech: {:.2f} ms".format(
+            self.processing_time(start_time)
+        ))
 
 if __name__ == '__main__':
     log.startLogging(sys.stdout)
 
-    factory = WebSocketServerFactory("ws://localhost:{}".format(args.port),
-                                     debug=False)
-    factory.protocol = OpenFaceServerProtocol
+    factory = WebSocketServerFactory("ws://localhost:{}".format(args.port))
+    factory.protocol = FaceLearnerProtocol
 
     reactor.listenTCP(args.port, factory)
     reactor.run()
