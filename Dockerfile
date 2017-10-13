@@ -20,7 +20,6 @@ RUN pip install autobahn txaio zope.interface \
 ENV PYTHONPATH $PYTHONPATH:/usr/local/lib/python2.7/site-packages:/root/dlib/dist
 
 COPY . .
-RUN chmod 755 *.py && \
 RUN chmod -R 777 /opt/app
 
 RUN echo "[unix_http_server]" > /etc/supervisor/conf.d/supervisord.conf && \
