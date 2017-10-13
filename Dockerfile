@@ -7,8 +7,7 @@ ENV TERM=xterm \
 
 WORKDIR ${HOME}
 
-RUN apt-get update && apt-get install -y supervisor \
-    python-opencv portaudio19-dev python-pyaudio && \
+RUN apt-get update && apt-get install -y supervisor && \
     mkdir -p /var/log/supervisor && \
     chmod -R 777 /var/log/supervisor
 
