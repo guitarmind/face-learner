@@ -27,6 +27,7 @@ RUN echo "[unix_http_server]" > /etc/supervisor/conf.d/supervisord.conf && \
     echo "" >> /etc/supervisor/conf.d/supervisord.conf && \
     echo "[supervisord]" >> /etc/supervisor/conf.d/supervisord.conf && \
     echo "nodaemon=true" >> /etc/supervisor/conf.d/supervisord.conf && \
+    echo "user=nobody" >> /etc/supervisor/conf.d/supervisord.conf && \
     echo "" >> /etc/supervisor/conf.d/supervisord.conf && \
     echo "[program:web_server]" >> /etc/supervisor/conf.d/supervisord.conf && \
     echo "priority=100" >> /etc/supervisor/conf.d/supervisord.conf && \
