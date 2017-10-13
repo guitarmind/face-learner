@@ -19,6 +19,7 @@ RUN pip install autobahn txaio zope.interface \
 ENV PYTHONPATH $PYTHONPATH:/usr/local/lib/python2.7/site-packages:/root/dlib/dist
 
 COPY . .
+RUN chmod 755 *.py && \
 RUN chmod -R 777 /opt/app
 
 RUN echo "[unix_http_server]" > /etc/supervisor/conf.d/supervisord.conf && \
@@ -27,7 +28,6 @@ RUN echo "[unix_http_server]" > /etc/supervisor/conf.d/supervisord.conf && \
     echo "" >> /etc/supervisor/conf.d/supervisord.conf && \
     echo "[supervisord]" >> /etc/supervisor/conf.d/supervisord.conf && \
     echo "nodaemon=true" >> /etc/supervisor/conf.d/supervisord.conf && \
-    echo "user=nobody" >> /etc/supervisor/conf.d/supervisord.conf && \
     echo "" >> /etc/supervisor/conf.d/supervisord.conf && \
     echo "[program:web_server]" >> /etc/supervisor/conf.d/supervisord.conf && \
     echo "priority=100" >> /etc/supervisor/conf.d/supervisord.conf && \
