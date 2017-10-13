@@ -49,13 +49,10 @@ def main():
       port = 8000
 
     application = tornado.web.Application([
-                    (r"/(.*)", CachedDisabledStaticFileHandler, {"path": ".", "default_filename": "index.html"}),
-                    (r'/css/(.*)',CachedDisabledStaticFileHandler,{'path':"deps/css"}),
-                    (r'/js/(.*)',CachedDisabledStaticFileHandler,{'path':"deps/js"}),
-                    (r'/fonts/(.*)',CachedDisabledStaticFileHandler,{'path':"deps/fonts"}),
-                    (r'/css/(.*)',CachedDisabledStaticFileHandler,{'path':"css"}),
-                    (r'/js/(.*)',CachedDisabledStaticFileHandler,{'path':"js"}),
-                    (r'/img/(.*)',CachedDisabledStaticFileHandler,{'path':"img"})])
+                    (r"/(.*)", CachedDisabledStaticFileHandler, {"path": "web", "default_filename": "index.html"}),
+                    (r'/css/(.*)',CachedDisabledStaticFileHandler,{'path':"web/deps/css"}),
+                    (r'/js/(.*)',CachedDisabledStaticFileHandler,{'path':"web/deps/js"}),
+                    (r'/fonts/(.*)',CachedDisabledStaticFileHandler,{'path':"web/deps/fonts"})])
     http_server = tornado.httpserver.HTTPServer(application)
     http_server.listen(port)
     logger.info("Web server starts at port " + str(port) + ".")
