@@ -29,7 +29,6 @@ RUN echo "[unix_http_server]" > /etc/supervisor/conf.d/supervisord.conf && \
     echo "nodaemon=true" >> /etc/supervisor/conf.d/supervisord.conf && \
     echo "" >> /etc/supervisor/conf.d/supervisord.conf && \
     echo "[program:web_server]" >> /etc/supervisor/conf.d/supervisord.conf && \
-    echo "user=root" >> /etc/supervisor/conf.d/supervisord.conf && \
     echo "priority=100" >> /etc/supervisor/conf.d/supervisord.conf && \
     echo "stdout_logfile=/dev/stdout" >> /etc/supervisor/conf.d/supervisord.conf && \
     echo "stdout_logfile_maxbytes=0" >> /etc/supervisor/conf.d/supervisord.conf && \
@@ -37,7 +36,6 @@ RUN echo "[unix_http_server]" > /etc/supervisor/conf.d/supervisord.conf && \
     echo "stderr_logfile_maxbytes=0" >> /etc/supervisor/conf.d/supervisord.conf && \
     echo "command=/usr/bin/python /opt/app/web-server.py &" >> /etc/supervisor/conf.d/supervisord.conf && \
     echo "[program:websocker_server]" >> /etc/supervisor/conf.d/supervisord.conf && \
-    echo "user=root" >> /etc/supervisor/conf.d/supervisord.conf && \
     echo "priority=0" >> /etc/supervisor/conf.d/supervisord.conf && \
     echo "stdout_logfile=/dev/stdout" >> /etc/supervisor/conf.d/supervisord.conf && \
     echo "stdout_logfile_maxbytes=0" >> /etc/supervisor/conf.d/supervisord.conf && \
