@@ -7,21 +7,20 @@ ENV TERM=xterm \
 
 WORKDIR ${HOME}
 
-RUN apt-get update && apt-get install -y supervisor && \
-    pip install autobahn \
-    twisted pyopenssl cryptography service_identity \
-    scipy tornado Click Pillow && \
+RUN apt-get update && apt-get install -y supervisor \
+    python-opencv portaudio19-dev python-pyaudio && \
     mkdir -p /var/log/supervisor && \
-    chmod -R 777 /var/log/supervisor && \
-    chmod 777 /run
+    chmod -R 777 /var/log/supervisor
+
+RUN pip install autobahn txaio zope.interface \
+    twisted pyopenssl cryptography service_identity \
+    scipy tornado Click Pillow pyaudio && \
+    touch /usr/local/lib/python2.7/site-packages/zope/__init__.py
+
+ENV PYTHONPATH $PYTHONPATH:/usr/local/lib/python2.7/site-packages:/root/dlib/dist
 
 COPY . .
-RUN mkdir -p /opt/face_learner/ && \
-    cp ./run /opt/face_learner/ && \
-    cd /opt/face_learner && \
-    rm -rf /opt/app/* && \
-    chmod -R 777 /opt/app && \
-    chmod -R 777 /opt/face_learner
+RUN chmod -R 777 /opt/app
 
 RUN echo "[unix_http_server]" > /etc/supervisor/conf.d/supervisord.conf && \
     echo "file=/var/run/supervisor.sock" >> /etc/supervisor/conf.d/supervisord.conf && \
@@ -30,24 +29,21 @@ RUN echo "[unix_http_server]" > /etc/supervisor/conf.d/supervisord.conf && \
     echo "[supervisord]" >> /etc/supervisor/conf.d/supervisord.conf && \
     echo "nodaemon=true" >> /etc/supervisor/conf.d/supervisord.conf && \
     echo "" >> /etc/supervisor/conf.d/supervisord.conf && \
-    echo "[program:websocker_server]" >> /etc/supervisor/conf.d/supervisord.conf && \
-    echo "priority=0" >> /etc/supervisor/conf.d/supervisord.conf && \
-    echo "stdout_logfile=/dev/stdout" >> /etc/supervisor/conf.d/supervisord.conf && \
-    echo "stdout_logfile_maxbytes=0" >> /etc/supervisor/conf.d/supervisord.conf && \
-    echo "stderr_logfile=/dev/stderr" >> /etc/supervisor/conf.d/supervisord.conf && \
-    echo "stderr_logfile_maxbytes=0" >> /etc/supervisor/conf.d/supervisord.conf && \
-    echo "command=/usr/bin/python3 /opt/face_learner/websocket-server.py" >> /etc/supervisor/conf.d/supervisord.conf \
-    echo "autostart=true" >> /etc/supervisor/conf.d/supervisord.conf && \
-    echo "autorestart=unexpected" >> /etc/supervisor/conf.d/supervisord.conf && \
-    echo "startsecs=0" >> /etc/supervisor/conf.d/supervisord.conf && \
     echo "[program:web_server]" >> /etc/supervisor/conf.d/supervisord.conf && \
+    echo "user=root" >> /etc/supervisor/conf.d/supervisord.conf && \
     echo "priority=100" >> /etc/supervisor/conf.d/supervisord.conf && \
     echo "stdout_logfile=/dev/stdout" >> /etc/supervisor/conf.d/supervisord.conf && \
     echo "stdout_logfile_maxbytes=0" >> /etc/supervisor/conf.d/supervisord.conf && \
     echo "stderr_logfile=/dev/stderr" >> /etc/supervisor/conf.d/supervisord.conf && \
     echo "stderr_logfile_maxbytes=0" >> /etc/supervisor/conf.d/supervisord.conf && \
-    echo "command=/usr/bin/python3 /opt/face_learner/web-server.py" >> /etc/supervisor/conf.d/supervisord.conf
-
-WORKDIR /opt/face_learner
+    echo "command=/usr/bin/python /opt/app/web-server.py &" >> /etc/supervisor/conf.d/supervisord.conf && \
+    echo "[program:websocker_server]" >> /etc/supervisor/conf.d/supervisord.conf && \
+    echo "user=root" >> /etc/supervisor/conf.d/supervisord.conf && \
+    echo "priority=0" >> /etc/supervisor/conf.d/supervisord.conf && \
+    echo "stdout_logfile=/dev/stdout" >> /etc/supervisor/conf.d/supervisord.conf && \
+    echo "stdout_logfile_maxbytes=0" >> /etc/supervisor/conf.d/supervisord.conf && \
+    echo "stderr_logfile=/dev/stderr" >> /etc/supervisor/conf.d/supervisord.conf && \
+    echo "stderr_logfile_maxbytes=0" >> /etc/supervisor/conf.d/supervisord.conf && \
+    echo "command=/usr/bin/python /opt/app/websocket-server.py" >> /etc/supervisor/conf.d/supervisord.conf
 
 CMD ["/usr/bin/supervisord"]
