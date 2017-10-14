@@ -11,6 +11,7 @@ import tornado.web
 import optparse
 import logging
 import os
+import time
 
 """
 Logging settings
@@ -39,6 +40,24 @@ class CachedDisabledStaticFileHandler(tornado.web.StaticFileHandler):
         # Disable cache
         self.set_header('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0')
 
+class DefaultPageHandler(tornado.web.RequestHandler):
+    def get(self):
+        self.set_header("Content-Type", "text/html; charset=UTF-8")
+        with open(os.path.join(os.getcwd(), 'web/index.html')) as f:
+            self.write(f.read())
+    def set_extra_headers(self, path):
+        # Disable cache
+        self.set_header('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0')
+
+class FaceDetectionHandler(tornado.web.RequestHandler):
+    def post(self):
+        data_url = self.request.body
+        print(data_url)
+        timestamp = time.time()
+        self.write({
+            "processing_time": timestamp
+        })
+
 def main():
     parser = optparse.OptionParser()
     parser.add_option('-p', '--port', dest='port', help='the listening port of Web server (default: 8000)')
@@ -46,13 +65,15 @@ def main():
 
     port = options.port
     if not options.port:   # if port is not given, use the default one 
-      port = 8000
+        port = 8000
 
     application = tornado.web.Application([
-                    (r"/(.*)", CachedDisabledStaticFileHandler, {"path": "web", "default_filename": "index.html"}),
-                    (r'/css/(.*)',CachedDisabledStaticFileHandler,{'path':"web/deps/css"}),
-                    (r'/js/(.*)',CachedDisabledStaticFileHandler,{'path':"web/deps/js"}),
-                    (r'/fonts/(.*)',CachedDisabledStaticFileHandler,{'path':"web/deps/fonts"})])
+                    (r"/", DefaultPageHandler),
+                    (r"/face/detection", FaceDetectionHandler),
+                    (r'/deps/css/(.*)',CachedDisabledStaticFileHandler,{'path':"web/deps/css"}),
+                    (r'/deps/js/(.*)',CachedDisabledStaticFileHandler,{'path':"web/deps/js"}),
+                    (r'/deps/fonts/(.*)',CachedDisabledStaticFileHandler,{'path':"web/deps/fonts"}),
+                    (r'/js/(.*)',CachedDisabledStaticFileHandler,{'path':"web/js"})])
     http_server = tornado.httpserver.HTTPServer(application)
     http_server.listen(port)
     logger.info("Web server starts at port " + str(port) + ".")
