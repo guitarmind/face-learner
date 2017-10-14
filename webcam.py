@@ -109,15 +109,15 @@ class WebcamClientProtocol(WebSocketClientProtocol):
         # print("Width: ", resized_frame.shape)
 
         # Detect faces inside image
-        annotated_data_url, frame_faces = fd.detect_faces(
-            frame, thumbnail_size, self.learned_faces, tolerance)
+        # annotated_data_url, frame_faces = fd.detect_faces(
+        #     frame, thumbnail_size, self.learned_faces, tolerance)
 
         data_url = fp.rgbframe_to_data_url(frame)
         timestamp = time.time()
         msg = {
             'capture_time': timestamp,
-            # 'data_url': data_url
-            'data_url': annotated_data_url
+            'data_url': data_url
+            # 'data_url': annotated_data_url
         }
         json_string = json.dumps(msg)
         self.sendMessage(json_string)
