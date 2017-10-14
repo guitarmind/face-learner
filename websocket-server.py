@@ -28,6 +28,7 @@ import numpy as np
 import time
 import uuid
 from threading import Thread
+import requests
 
 import pickle
 import os.path
@@ -358,6 +359,10 @@ class FaceLearnerProtocol(WebSocketServerProtocol):
         with open(model_path, "wb") as f:
             pickle.dump(self.learned_faces, f,
                 protocol=pickle.HIGHEST_PROTOCOL)
+        self.send_model_updated_event()
+
+    def send_model_updated_event(self):
+        requests.get("http://localhost:8000/model_updated")\
 
     def update_face_to_model(self, vizface):
         learned = Face(vizface.uuid, vizface.name, vizface.embeddings, vizface.samples)

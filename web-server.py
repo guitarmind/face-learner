@@ -57,11 +57,13 @@ logger.addHandler(fileHandler)
 logger.addHandler(consoleHandler)
 
 class CachedDisabledStaticFileHandler(tornado.web.StaticFileHandler):
+
     def set_extra_headers(self, path):
         # Disable cache
         self.set_header('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0')
 
 class DefaultPageHandler(tornado.web.RequestHandler):
+
     def get(self):
         self.set_header("Content-Type", "text/html; charset=UTF-8")
         with open(os.path.join(os.getcwd(), 'web/index.html')) as f:
@@ -80,6 +82,12 @@ class FaceDetectionHandler(tornado.web.RequestHandler):
             frame, thumbnail_size, learned_faces, tolerance)
         self.write(annotated_data_url)
 
+class ModelUpdateHandler(tornado.web.RequestHandler):
+
+    def get(self):
+        global model_path, learned_faces
+        learned_faces = load_model(model_path)
+
 # Load Pre-trained Face Recongnition Model #
 
 def load_model(model_path):
@@ -90,7 +98,8 @@ def load_model(model_path):
             for learned in model:
                 print(learned.name, learned.samples)
             print("Model face count: {}".format(len(model)))
-            return model
+
+    return model
 
 def main():
     parser = argparse.ArgumentParser()
@@ -114,6 +123,7 @@ def main():
 
     application = tornado.web.Application([
                     (r"/face_detection", FaceDetectionHandler),
+                    (r"/model_updated", ModelUpdateHandler),
                     (r"/", DefaultPageHandler),
                     (r'/deps/css/(.*)',CachedDisabledStaticFileHandler,{'path':"web/deps/css"}),
                     (r'/deps/js/(.*)',CachedDisabledStaticFileHandler,{'path':"web/deps/js"}),

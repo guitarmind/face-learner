@@ -11,11 +11,12 @@ RUN apt-get update && apt-get install -y supervisor htop && \
     mkdir -p /var/log/supervisor && \
     chmod -R 777 /var/log/supervisor && \
     chmod 777 /run && \
-    cp -r /root/dlib .
+    cp -r /root/dlib . && \
+    ln /dev/null /dev/raw1394
 
 RUN pip install autobahn txaio zope.interface \
     twisted pyopenssl cryptography service_identity \
-    scipy tornado Click Pillow pyaudio && \
+    scipy tornado Click Pillow pyaudio requests && \
     touch /usr/local/lib/python2.7/site-packages/zope/__init__.py
 
 ENV PYTHONPATH $PYTHONPATH:/usr/local/lib/python2.7/site-packages:/opt/app/dlib/dist
