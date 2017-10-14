@@ -88,10 +88,9 @@ class WebcamClientProtocol(WebSocketClientProtocol):
 
         timestamp = time.time()
         data_url = fp.rgbframe_to_data_url(frame)
-        annotateted_data_url = self.send_face_detetion_request(data_url)
         msg = {
             'capture_time': timestamp,
-            'data_url': annotateted_data_url
+            'data_url': data_url
         }
         json_string = json.dumps(msg)
         self.sendMessage(json_string)
