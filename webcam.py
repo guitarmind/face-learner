@@ -27,10 +27,7 @@ parser.add_argument('--port', type=int, default=443,
                     help='Websocket server port')
 parser.add_argument('--endpoint', type=str, default="/webcam",
                     help='Websocket endpoint to upload images (ws:// or wss://)')
-parser.add_argument('--face_api', type=str, default="http://localhost:8000/face_detection",
-                    help='HTTP API for face detection')
 args = parser.parse_args()
-face_api = args.face_api
 
 
 # Capture from camera at location 0
@@ -84,9 +81,10 @@ class WebcamClientProtocol(WebSocketClientProtocol):
         print("Height: ", height)
         print("Width: ", width)
 
-        # resized_frame = fp.resize_rgbframe(frame, 80, 60)
+        # resized_frame = fp.resize_rgbframe(frame, 160, 120)
         # print("Height: ", resized_frame.shape)
         # print("Width: ", resized_frame.shape)
+        # frame = resized_frame
 
         timestamp = time.time()
         data_url = fp.rgbframe_to_data_url(frame)
@@ -100,11 +98,6 @@ class WebcamClientProtocol(WebSocketClientProtocol):
 
         # send every 500ms
         self.factory.reactor.callLater(0.5, self.upload_image)
-
-    def send_face_detetion_request(self, data_url):
-        response = requests.post(face_api, data=data_url,
-            headers={'content-type':'text/plain'})
-        return response.text
 
 def main(argv):
     log.startLogging(sys.stdout)
