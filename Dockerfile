@@ -7,7 +7,7 @@ ENV TERM=xterm \
 
 WORKDIR ${HOME}
 
-RUN apt-get update && apt-get install -y supervisor && \
+RUN apt-get update && apt-get install -y supervisor htop && \
     mkdir -p /var/log/supervisor && \
     chmod -R 777 /var/log/supervisor && \
     chmod 777 /run && \
@@ -36,7 +36,7 @@ RUN echo "[unix_http_server]" > /etc/supervisor/conf.d/supervisord.conf && \
     echo "stdout_logfile_maxbytes=0" >> /etc/supervisor/conf.d/supervisord.conf && \
     echo "stderr_logfile=/dev/stderr" >> /etc/supervisor/conf.d/supervisord.conf && \
     echo "stderr_logfile_maxbytes=0" >> /etc/supervisor/conf.d/supervisord.conf && \
-    echo "command=/usr/bin/python /opt/app/web-server.py &" >> /etc/supervisor/conf.d/supervisord.conf && \
+    echo "command=/usr/bin/python /opt/app/web-server.py" >> /etc/supervisor/conf.d/supervisord.conf && \
     echo "[program:websocker_server]" >> /etc/supervisor/conf.d/supervisord.conf && \
     echo "priority=0" >> /etc/supervisor/conf.d/supervisord.conf && \
     echo "stdout_logfile=/dev/stdout" >> /etc/supervisor/conf.d/supervisord.conf && \
