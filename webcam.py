@@ -4,12 +4,11 @@ import sys
 import argparse
 import cv2
 import json
-import face_processing as fp
 import os
 import random
 import time
 import uuid
-import pickle
+import requests
 
 from autobahn.twisted.websocket import WebSocketClientProtocol, \
     WebSocketClientFactory, connectWS
@@ -17,11 +16,8 @@ from twisted.python import log
 from twisted.internet import reactor, ssl
 from threading import Thread
 
-import face_detector as fd
+import face_processing as fp
 import tts
-
-# Custom Face Object
-from face import Face, VizFace
 
 
 parser = argparse.ArgumentParser()
@@ -31,19 +27,11 @@ parser.add_argument('--port', type=int, default=443,
                     help='Websocket server port')
 parser.add_argument('--endpoint', type=str, default="/webcam",
                     help='Websocket endpoint to upload images (ws:// or wss://)')
-parser.add_argument('--model', type=str, default="model/learned_faces.pkl",
-                    help='Model file path for learned faces')
+parser.add_argument('--face_api', type=str, default="http://localhost:8000/face_detection",
+                    help='HTTP API for face detection')
 args = parser.parse_args()
+face_api = args.face_api
 
-# Face thumbnail
-thumbnail_size = 48
-
-# Face model file
-model_path = args.model
-
-# Recognition tolerance
-# tolerance = 0.45
-tolerance = 0.48
 
 # Capture from camera at location 0
 cap = cv2.VideoCapture(0)
@@ -55,15 +43,6 @@ height_out = cap.set(cv2.cv.CV_CAP_PROP_FRAME_HEIGHT, cap_height)
 
 
 class WebcamClientProtocol(WebSocketClientProtocol):
-
-    def __init__(self):
-        # Call init function of WebSocketClientProtocol
-        super(self.__class__, self).__init__()
-        # Load learned model if found
-        if os.path.isfile(model_path):
-            self.load_model()
-        else:
-            self.learned_faces = set()
 
     def onConnect(self, response):
         print(response)
@@ -95,6 +74,7 @@ class WebcamClientProtocol(WebSocketClientProtocol):
         print("Pong sent to {} - {}".format(self.peer, self.pongsSent))
 
     def upload_image(self):
+
         # Capture new frame
         ret, frame = cap.read()
         # gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
@@ -108,16 +88,12 @@ class WebcamClientProtocol(WebSocketClientProtocol):
         # print("Height: ", resized_frame.shape)
         # print("Width: ", resized_frame.shape)
 
-        # Detect faces inside image
-        # annotated_data_url, frame_faces = fd.detect_faces(
-        #     frame, thumbnail_size, self.learned_faces, tolerance)
-
-        data_url = fp.rgbframe_to_data_url(frame)
         timestamp = time.time()
+        data_url = fp.rgbframe_to_data_url(frame)
+        annotateted_data_url = self.send_face_detetion_request(data_url)
         msg = {
             'capture_time': timestamp,
-            'data_url': data_url
-            # 'data_url': annotated_data_url
+            'data_url': annotateted_data_url
         }
         json_string = json.dumps(msg)
         self.sendMessage(json_string)
@@ -125,17 +101,10 @@ class WebcamClientProtocol(WebSocketClientProtocol):
         # send every 500ms
         self.factory.reactor.callLater(0.5, self.upload_image)
 
-    # Face Model #
-
-    def load_model(self):
-        with open(model_path, "rb") as f:
-            model = pickle.load(f)
-            if model is not None:
-                print("Loaded model faces:")
-                for learned in model:
-                    print(learned.name, learned.samples)
-                print("Model face count: {}".format(len(model)))
-                self.learned_faces = model
+    def send_face_detetion_request(self, data_url):
+        response = requests.post(face_api, data=data_url,
+            headers={'content-type':'text/plain'})
+        return response.text
 
 def main(argv):
     log.startLogging(sys.stdout)

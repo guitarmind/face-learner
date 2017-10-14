@@ -38,13 +38,13 @@ def processing_time(start_time):
     return (time.time() - start_time) * 1000 # ms
 
 def detect_faces(frame, thumbnail_size, learned_faces, tolerance):
-    img_width, img_height = frame.shape[1], frame.shape[0]
+    img_width, img_height = frame.size
 
     # Flip image horizontally
     flipped_frame = fp.flip_image(frame)
 
-    # Already in RGB
-    rgb_frame = flipped_frame
+    # Convert BGR to RGB
+    rgb_frame = fp.gbrframe_to_rgbframe(flipped_frame)
 
     # Make a copy for annotation
     annotated_frame = np.copy(rgb_frame)

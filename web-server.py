@@ -8,10 +8,31 @@
 import tornado.httpserver
 import tornado.ioloop
 import tornado.web
-import optparse
+import argparse
 import logging
 import os
 import time
+import pickle
+
+import face_processing as fp
+import face_detector as fd
+import tts
+
+# Custom Face Object
+from face import Face, VizFace
+
+
+# Face thumbnail
+thumbnail_size = 48
+
+# Face model
+model_path = None
+learned_faces = None
+
+# Recognition tolerance
+tolerance = 0.4
+# tolerance = 0.45
+
 
 """
 Logging settings
@@ -50,26 +71,50 @@ class DefaultPageHandler(tornado.web.RequestHandler):
         self.set_header('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0')
 
 class FaceDetectionHandler(tornado.web.RequestHandler):
+
     def post(self):
         data_url = self.request.body
-        print(data_url)
-        timestamp = time.time()
-        self.write({
-            "processing_time": timestamp
-        })
+        frame = fp.data_url_to_rgbframe(data_url)
+        # Detect faces inside image
+        annotated_data_url, frame_faces = fd.detect_faces(
+            frame, thumbnail_size, learned_faces, tolerance)
+        self.write(annotated_data_url)
+
+# Load Pre-trained Face Recongnition Model #
+
+def load_model(model_path):
+    with open(model_path, "rb") as f:
+        model = pickle.load(f)
+        if model is not None:
+            print("Loaded model faces:")
+            for learned in model:
+                print(learned.name, learned.samples)
+            print("Model face count: {}".format(len(model)))
+            return model
 
 def main():
-    parser = optparse.OptionParser()
-    parser.add_option('-p', '--port', dest='port', help='the listening port of Web server (default: 8000)')
-    (options, args) = parser.parse_args()
+    parser = argparse.ArgumentParser()
+    parser.add_argument('-p', '--port', dest='port', help='the listening port of Web server (default: 8000)')
+    parser.add_argument('--model', type=str, default="model/learned_faces.pkl",
+                        help='Model file path for learned faces')
+    args = parser.parse_args()
 
-    port = options.port
-    if not options.port:   # if port is not given, use the default one 
+    global model_path, learned_faces
+    model_path = args.model
+
+    # Load learned model if found
+    if os.path.isfile(model_path):
+        learned_faces = load_model(model_path)
+    else:
+        learned_faces = set()
+
+    port = args.port
+    if not args.port:   # if port is not given, use the default one 
         port = 8000
 
     application = tornado.web.Application([
+                    (r"/face_detection", FaceDetectionHandler),
                     (r"/", DefaultPageHandler),
-                    (r"/face/detection", FaceDetectionHandler),
                     (r'/deps/css/(.*)',CachedDisabledStaticFileHandler,{'path':"web/deps/css"}),
                     (r'/deps/js/(.*)',CachedDisabledStaticFileHandler,{'path':"web/deps/js"}),
                     (r'/deps/fonts/(.*)',CachedDisabledStaticFileHandler,{'path':"web/deps/fonts"}),

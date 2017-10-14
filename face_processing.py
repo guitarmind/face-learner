@@ -11,20 +11,23 @@ import os
 import StringIO
 import urllib
 
-def data_url_to_rgbframe(data_url):
-    head = "data:image/jpeg;base64,"
+def data_url_to_rgbframe(data_url, img_type="jpeg"):
+    if img_type == "jpeg":
+        head = "data:image/jpeg;base64,"
+    else:
+        head = "data:image/png;base64,"
     assert(data_url.startswith(head))
-    imgdata = base64.b64decode(data_url[len(head):])
+    imgdata = base64.b64decode(urllib.unquote(data_url[len(head):]))
     imgF = StringIO.StringIO()
     imgF.write(imgdata)
     imgF.seek(0)
     img = Image.open(imgF)
     return img
 
-def rgbframe_to_data_url(frame, img_type="jpg"):
-    if img_type == "jpg":
-        encoded = cv2.imencode('.jpg', frame)
-        data_url = 'data:image/jpg;base64,' + \
+def rgbframe_to_data_url(frame, img_type="jpeg"):
+    if img_type == "jpeg":
+        encoded = cv2.imencode('.jpeg', frame)
+        data_url = 'data:image/jpeg;base64,' + \
             urllib.quote(base64.b64encode(encoded[1]))
     else:
         encoded = cv2.imencode('.png', frame)

@@ -147,7 +147,6 @@ class FaceLearnerProtocol(WebSocketServerProtocol):
             if msg['name'] != "Unknown":
                 # Merge unknown face into known one if asked
                 if msg['name'] in self.name_table and msg['uuid'] != self.name_table[msg['name']]:
-                    print("hihihi!!!!!!!!!!!!!!!")
                     labeled_face = self.face_table[self.name_table[msg['name']]]
                     face_to_merge = self.face_table[msg['uuid']]
                     labeled_face = self.merge_faces(labeled_face, face_to_merge)
