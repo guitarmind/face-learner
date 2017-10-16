@@ -21,7 +21,7 @@ import tts
 
 
 parser = argparse.ArgumentParser()
-parser.add_argument('--host', type=str, default="face-learner.apps.exosite.io",
+parser.add_argument('--host', type=str, default="face-learner.apps.exosite-dev.io",
                     help='Websocket server hostname')
 parser.add_argument('--port', type=int, default=443,
                     help='Websocket server port')
