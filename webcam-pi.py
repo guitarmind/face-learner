@@ -80,11 +80,17 @@ class WebcamClientProtocol(WebSocketClientProtocol):
     def upload_image(self):
 
         # Capture new frame with resize
-        camera.capture(rawCapture, format="bgr", resize=(cap_width, cap_height))
+        camera.capture(rawCapture, format="bgr")
+        # camera.capture(rawCapture, format="bgr", resize=(cap_width, cap_height))
         frame = rawCapture.array
 
         print("Height: ", frame.shape[0])
         print("Width: ", frame.shape[1])
+
+        resized_frame = fp.resize_rgbframe(frame, cap_width, cap_height)
+        print("Height: ", resized_frame.shape[0])
+        print("Width: ", resized_frame.shape[1])
+        frame = resized_frame
 
         timestamp = time.time()
         data_url = fp.rgbframe_to_data_url(frame)
