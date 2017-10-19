@@ -95,6 +95,9 @@ class WebcamClientProtocol(WebSocketClientProtocol):
         json_string = json.dumps(msg)
         self.sendMessage(json_string)
 
+        # clear the stream in preparation for the next frame
+        rawCapture.truncate(0)
+
         # send every 500ms
         self.factory.reactor.callLater(0.5, self.upload_image)
 
@@ -115,7 +118,7 @@ def main(argv):
     reactor.run()
 
     # When everything done, release the capture
-    cap.release()
+    camera.close()
 
 if __name__ == '__main__':
     main(sys.argv)
