@@ -79,15 +79,11 @@ def detect_faces(frame, thumbnail_size, learned_faces, tolerance):
             resized = fp.resize_rgbframe(cropped, thumbnail_size, thumbnail_size)
             data_url = fp.rgbframe_to_data_url(resized)
             face = {
-                "uuid": result_face.uuid,
-                "color": result_face.color_hex,
                 "name": result_face.name,
                 "thumbnail": data_url
             }
         else:
             face = {
-                "uuid": result_face.uuid,
-                "color": result_face.color_hex,
                 "name": result_face.name
             }
         frame_faces.append(face)
