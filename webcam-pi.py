@@ -25,13 +25,16 @@ import tts
 
 
 parser = argparse.ArgumentParser()
-parser.add_argument('--host', type=str, default="face-learner.apps.exosite-dev.io",
+parser.add_argument('--host', type=str, default="imwy.apps.exosite.io",
                     help='Websocket server hostname')
 parser.add_argument('--port', type=int, default=443,
                     help='Websocket server port')
 parser.add_argument('--endpoint', type=str, default="/webcam",
                     help='Websocket endpoint to upload images (ws:// or wss://)')
 args = parser.parse_args()
+
+# Capture frequency
+cap_freq = 0.5
 
 # Customize camera resolution
 cap_width = 320
@@ -104,8 +107,8 @@ class WebcamClientProtocol(WebSocketClientProtocol):
         # clear the stream in preparation for the next frame
         rawCapture.truncate(0)
 
-        # send every 500ms
-        self.factory.reactor.callLater(0.5, self.upload_image)
+        # send every cap_freq second
+        self.factory.reactor.callLater(cap_freq, self.upload_image)
 
 def main(argv):
     log.startLogging(sys.stdout)
