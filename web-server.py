@@ -81,8 +81,8 @@ class FaceDetectionHandler(tornado.web.RequestHandler):
         annotated_data_url, frame_faces = fd.detect_faces(
             frame, thumbnail_size, learned_faces, tolerance)
         resp = {
-            annotated_snapshot: annotated_data_url,
-            detected_faces: frame_faces
+            'annotated_snapshot': annotated_data_url,
+            'detected_faces': frame_faces
         }
         self.write(resp)
 
