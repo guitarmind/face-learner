@@ -29,7 +29,8 @@ def load_model(model_path):
 
     return model
 
-remote_model_api = "http://localhost:8000/model"
+# remote_model_api = "http://localhost:8000/model"
+remote_model_api = "http://face-learner-dev.hosted.exosite.io/model"
 model_path = "model/learned_faces.pkl"
 # Load learned model if found
 if os.path.isfile(model_path):
