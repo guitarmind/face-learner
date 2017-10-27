@@ -37,6 +37,7 @@ args = parser.parse_args()
 cap_freq = 0.5
 
 # Customize camera resolution
+enable_resize = False
 cap_width = 320
 cap_height = 240
 
@@ -109,10 +110,11 @@ class WebcamClientProtocol(WebSocketClientProtocol):
         print("Height: ", frame.shape[0])
         print("Width: ", frame.shape[1])
 
-        resized_frame = fp.resize_rgbframe(frame, cap_width, cap_height)
-        print("Height: ", resized_frame.shape[0])
-        print("Width: ", resized_frame.shape[1])
-        frame = resized_frame
+        if enable_resize:
+            resized_frame = fp.resize_rgbframe(frame, cap_width, cap_height)
+            print("Height: ", resized_frame.shape[0])
+            print("Width: ", resized_frame.shape[1])
+            frame = resized_frame
 
         timestamp = time.time()
         data_url = fp.rgbframe_to_data_url(frame)
