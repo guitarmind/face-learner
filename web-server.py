@@ -13,6 +13,8 @@ import logging
 import os
 import time
 import pickle
+import codecs
+import json
 
 import face_processing as fp
 import face_detector as fd
@@ -96,6 +98,41 @@ class ModelUpdateHandler(tornado.web.RequestHandler):
         global model_path, learned_faces
         learned_faces = load_model(model_path)
 
+class ModelFileHandler(tornado.web.RequestHandler):
+
+    def post(self):
+        global model_path, learned_faces
+        data = json.loads(self.request.body)
+        command = data["cmd"]
+        if command == "delete":
+            learned_faces = load_model(model_path)
+            found = None
+            for known in learned_faces:
+                if known.name == data["name"]:
+                    found = known
+            if found is not None:
+                learned_faces.discard(found)
+                save_model(model_path, learned_faces)
+            self.write("OK")
+
+        elif command == "rename":
+            learned_faces = load_model(model_path)
+            for known in learned_faces:
+                if known.name == data["name"]:
+                    known.setName(data["new_name"])
+            save_model(model_path, learned_faces)
+            self.write("OK")
+
+        elif command == "overwrite":
+            learned_faces = pickle.loads(codecs.decode(data["model"], "base64"))
+            # Overwrite existing model file
+            save_model(model_path, learned_faces)
+            self.write("OK")
+
+        else:
+            self.write("Unknown command")
+
+
 # Load Pre-trained Face Recongnition Model #
 
 def load_model(model_path):
@@ -108,6 +145,11 @@ def load_model(model_path):
             print("Model face count: {}".format(len(model)))
 
     return model
+
+def save_model(model_path, learned_faces):
+    with open(model_path, "wb") as f:
+        pickle.dump(learned_faces, f,
+            protocol=pickle.HIGHEST_PROTOCOL)
 
 def main():
     parser = argparse.ArgumentParser()
@@ -132,6 +174,7 @@ def main():
     application = tornado.web.Application([
                     (r"/face_detection", FaceDetectionHandler),
                     (r"/model_updated", ModelUpdateHandler),
+                    (r"/model", ModelFileHandler),
                     (r"/", DefaultPageHandler),
                     (r'/deps/css/(.*)',CachedDisabledStaticFileHandler,{'path':"web/deps/css"}),
                     (r'/deps/js/(.*)',CachedDisabledStaticFileHandler,{'path':"web/deps/js"}),
