@@ -97,9 +97,10 @@ def detect_faces(frame, thumbnail_size, learned_faces, tolerance):
             color, left - 5, top - 10, 0.65, 2)
 
         # Draw matched distance
-        fp.draw_face_label_text(annotated_frame,
-            "{:.3f}".format(distance), color,
-            left + int((right - left) / 2) - 20, bottom + 20, 0.5, 1)
+        if distance != 999:
+            fp.draw_face_label_text(annotated_frame,
+                "{:.3f}".format(distance), color,
+                left + int((right - left) / 2) - 20, bottom + 20, 0.5, 1)
 
     start_time = time.time()
     # Generate image data url from annotated frame
