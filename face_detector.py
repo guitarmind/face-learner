@@ -68,7 +68,8 @@ def detect_faces(frame, thumbnail_size, learned_faces, tolerance):
     for(top, right, bottom, left), embeddings in zip(face_locations, face_encodings):
         start_time = time.time()
         result_face, distance = face_lookup(embeddings, learned_faces, tolerance)
-        print("Time spent on face lookup: {:.2f} ms".format(
+        print("Time spent on face lookup with tolerance={}: {:.2f} ms".format(
+            tolerance,
             processing_time(start_time)
         ))
 

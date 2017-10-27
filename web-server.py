@@ -77,9 +77,15 @@ class FaceDetectionHandler(tornado.web.RequestHandler):
     def post(self):
         data_url = self.request.body
         frame = fp.data_url_to_rgbframe(data_url)
+
+        # Use custom tolerance if detected
+        comparison_tolerance = self.get_argument("tolerance")
+        if comparison_tolerance is None:
+           comparison_tolerance = tolerance
+
         # Detect faces inside image
         annotated_data_url, frame_faces = fd.detect_faces(
-            frame, thumbnail_size, learned_faces, tolerance)
+            frame, thumbnail_size, learned_faces, comparison_tolerance)
         resp = {
             'annotated_snapshot': annotated_data_url,
             'detected_faces': frame_faces
