@@ -37,7 +37,7 @@ args = parser.parse_args()
 cap_freq = 0.5
 
 # Customize camera resolution
-enable_resize = False
+enable_resize = True
 cap_width = 320
 cap_height = 240
 

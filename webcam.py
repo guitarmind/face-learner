@@ -34,9 +34,16 @@ cap_freq = 0.5
 
 # Capture from camera at location 0
 cap = cv2.VideoCapture(0)
-cap_width = 320
-cap_height = 240
+
 # Customize camera resolution
+enable_resize = True
+
+if enable_resize:
+    cap_width = 320
+    cap_height = 240
+else:
+    cap_width = 640
+    cap_height = 480
 width_out = cap.set(cv2.cv.CV_CAP_PROP_FRAME_WIDTH, cap_width)
 height_out = cap.set(cv2.cv.CV_CAP_PROP_FRAME_HEIGHT, cap_height)
 
