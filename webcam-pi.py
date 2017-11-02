@@ -38,8 +38,10 @@ cap_freq = 0.5
 
 # Customize camera resolution
 enable_resize = True
-cap_width = 320
-cap_height = 240
+cap_width = 400
+cap_height = 300
+# cap_width = 320
+# cap_height = 240
 
 # initialize the camera and grab a reference to the raw camera capture
 camera = PiCamera()

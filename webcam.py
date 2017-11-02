@@ -37,13 +37,13 @@ cap = cv2.VideoCapture(0)
 
 # Customize camera resolution
 enable_resize = True
+resize_width = 400
+resize_height = 300
+# resize_width = 320
+# resize_height = 240
 
-if enable_resize:
-    cap_width = 320
-    cap_height = 240
-else:
-    cap_width = 640
-    cap_height = 480
+cap_width = 640
+cap_height = 480
 width_out = cap.set(cv2.cv.CV_CAP_PROP_FRAME_WIDTH, cap_width)
 height_out = cap.set(cv2.cv.CV_CAP_PROP_FRAME_HEIGHT, cap_height)
 
@@ -90,13 +90,16 @@ class WebcamClientProtocol(WebSocketClientProtocol):
         print("Height: ", height)
         print("Width: ", width)
 
-        # resized_frame = fp.resize_rgbframe(frame, 160, 120)
-        # print("Height: ", resized_frame.shape)
-        # print("Width: ", resized_frame.shape)
-        # frame = resized_frame
+        if enable_resize:
+            resized_frame = fp.resize_rgbframe(frame, resize_width, resize_height)
+            print("Height: ", resized_frame.shape)
+            print("Width: ", resized_frame.shape)
+            frame = resized_frame
 
         timestamp = time.time()
         data_url = fp.rgbframe_to_data_url(frame)
+        data_url_size = round(sys.getsizeof(data_url) / 1000.0, 2)
+        print("Image data url size: " + str(data_url_size) + " KB")
         msg = {
             'capture_time': timestamp,
             'data_url': data_url
