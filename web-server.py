@@ -129,6 +129,13 @@ class ModelFileHandler(tornado.web.RequestHandler):
             save_model(model_path, learned_faces)
             self.write("OK")
 
+        elif command == "list":
+            output = {}
+            for face in learned_faces:
+                output[face.name] = face.samples
+            self.set_header("content-type", "application/json")
+            self.write(json.dumps(output))
+
         else:
             self.write("Unknown command")
 
