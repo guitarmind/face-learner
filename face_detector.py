@@ -121,7 +121,7 @@ def face_lookup(unknown, learned_faces, tolerance):
             vizface = VizFace(known.uuid, known.name, known.embeddings, known.samples,
                         color, color_hex)
             matched_learned_faces.append((vizface, distance))
-        color_index += 1
+            color_index += 1
     if len(matched_learned_faces) > 0:
         known, min_dist = sorted(matched_learned_faces, key=lambda x: x[1])[0]
         return known, min_dist

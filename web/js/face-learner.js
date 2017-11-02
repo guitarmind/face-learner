@@ -28,8 +28,8 @@ window.URL = window.URL ||
 var vid = document.getElementById('video-box'),
     vidReady = false;
 var socket, socketName;
-// a list of detected people and face thumbnail until now
-var people = {}, name_table = {}, images = [];
+// a list of detected people
+var people = {}, images = [];
 var colors = palette('cb-Paired', 10);
 var mq = 1;
 
@@ -78,10 +78,16 @@ function labelPersonCallback(e, id, text) {
         'uuid': id,
         'name': text
     };
-    if (text in name_table && name_table[text] !== id)
-        // remove duplicated face
-        delete people[id];
-        $('#' + id).parent().parent().parent().remove();
+    people[id].name = text;
+
+    for (var key in people) {
+        var person = people[key];
+        if (text === person.name && id != key) {
+            // remove duplicated face
+            delete people[id];
+            $('#' + id).parent().parent().parent().remove();
+        }
+    }
     socket.send(JSON.stringify(msg)); 
 }
 
@@ -190,7 +196,6 @@ function createSocket(address, name) {
                         'color': face['color'],
                         'samples': face['samples']
                     }
-                    name_table[face['name']] = face['uuid']
                 } else {
                     // update thumbnail
                     if (face['thumbnail'] != undefined)
