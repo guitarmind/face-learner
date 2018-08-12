@@ -29,8 +29,13 @@ parser.add_argument('--endpoint', type=str, default="/webcam",
                     help='Websocket endpoint to upload images (ws:// or wss://)')
 args = parser.parse_args()
 
+# Google Cloud Vision
+api_key = "AIzaSyDvpTK9ZYC7Z5VEURPvpic280XUeOT7o50"
+feature_type = "FACE_DETECTION"
+
 # Capture frequency
-cap_freq = 0.5
+# cap_freq = 0.5
+cap_freq = 1
 
 # Capture from camera at location 0
 cap = cv2.VideoCapture(0)
@@ -44,6 +49,29 @@ cap_height = 300
 
 # allow the camera to warmup
 time.sleep(0.1)
+
+
+palette_hex_table = [
+  "#a6cee3",
+  "#1f78b4",
+  "#b2df8a",
+  "#33a02c",
+  "#fb9a99",
+  "#e31a1c",
+  "#fdbf6f",
+  "#ff7f00",
+  "#cab2d6",
+  "#6a3d9a"
+]
+# Convert to BGR colors
+palette_bgr_table = [tuple(int(h.lstrip('#')[i:i+2], 16) for i in (4, 2 ,0)) \
+    for h in palette_hex_table]
+
+# Pick a color for a new face
+def pick_face_color(color_index):
+    color_hex = palette_hex_table[color_index % 10]
+    color = palette_bgr_table[color_index % 10]
+    return color, color_hex
 
 
 class WebcamClientProtocol(WebSocketClientProtocol):
@@ -94,6 +122,9 @@ class WebcamClientProtocol(WebSocketClientProtocol):
             print("Width: ", resized_frame.shape[1])
             frame = resized_frame
 
+        # Detect face from Cloud Vision
+        frame = self.detect_face(frame)
+
         timestamp = time.time()
         data_url = fp.rgbframe_to_data_url(frame)
         msg = {
@@ -105,6 +136,70 @@ class WebcamClientProtocol(WebSocketClientProtocol):
 
         # send every cap_freq second
         self.factory.reactor.callLater(cap_freq, self.upload_image)
+
+    def detect_face(self, frame):
+        content = fp.rgbframe_to_base64(frame)
+        request_body = {
+          "requests":[
+            {
+              "image":{
+                "content": content
+              },
+              "features":[
+                {
+                  "type": feature_type,
+                  "maxResults":10
+                }
+              ]
+            }
+          ]
+        }
+
+        params = {
+            "key": api_key
+        }
+        headers = {
+            "Content-Type": "application/json"
+        }
+
+        r = requests.post("https://vision.googleapis.com/v1/images:annotate",
+            json=request_body, params=params, headers=headers)
+        json_data = json.loads(r.text)
+
+        if "responses" in json_data and len(json_data["responses"]) > 0:
+            json_data = json_data["responses"][0]
+            if "faceAnnotations" in json_data and len(json_data["faceAnnotations"]):
+                for face in json_data["faceAnnotations"]:
+                    locations = face["boundingPoly"]["vertices"]
+                    print(locations)
+
+                    max_x, max_y, min_x, min_y = 0, 0, 0, 0
+                    for loc in locations:
+                        if "x" in loc:
+                            if max_x == 0:
+                                max_x = loc["x"]
+                            elif max_x < loc["x"]:
+                                max_x = loc["x"]
+                            if min_x == 0:
+                                min_x = loc["x"]
+                            elif min_x > loc["x"]:
+                                min_x = loc["x"]
+                        if "y" in loc:
+                            if max_y == 0:
+                                max_y = loc["y"]
+                            elif max_y < loc["y"]:
+                                max_y = loc["y"]
+                            if min_y == 0:
+                                min_y = loc["y"]
+                            elif min_y > loc["y"]:
+                                min_y = loc["y"]
+
+                    # Draw a box around the face (color order: BGR)
+                    top, right, bottom, left = min_y, max_x, max_y, min_x
+                    color, _ = pick_face_color(1)
+                    fp.draw_face_box(frame, color, top, right, bottom, left)
+
+        return frame
 
 def main(argv):
     log.startLogging(sys.stdout)

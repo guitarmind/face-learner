@@ -35,6 +35,13 @@ def rgbframe_to_data_url(frame, img_type="jpeg"):
             urllib.quote(base64.b64encode(encoded[1]))
     return data_url
 
+def rgbframe_to_base64(frame, img_type="jpeg"):
+    if img_type == "jpeg":
+        encoded = cv2.imencode('.jpeg', frame)
+    else:
+        encoded = cv2.imencode('.png', frame)
+    return base64.b64encode(encoded[1])
+
 def flip_image(img):
     return cv2.flip(np.asarray(img), flipCode=1)
 
