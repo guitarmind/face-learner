@@ -27,10 +27,12 @@ parser.add_argument('--port', type=int, default=443,
                     help='Websocket server port')
 parser.add_argument('--endpoint', type=str, default="/webcam",
                     help='Websocket endpoint to upload images (ws:// or wss://)')
+parser.add_argument('--key', type=str, default="",
+                    help='Cloud Vision API key')
 args = parser.parse_args()
 
 # Google Cloud Vision
-api_key = "AIzaSyDvpTK9ZYC7Z5VEURPvpic280XUeOT7o50"
+api_key = args.key
 feature_type = "FACE_DETECTION"
 
 # Capture frequency
