@@ -113,8 +113,8 @@ class WebcamClientProtocol(WebSocketClientProtocol):
         ret, frame = cap.read()
         # gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
 
-        width = cap.get(cv2.CAP_PROP_FRAME_WIDTH)
-        height = cap.get(cv2.CAP_PROP_FRAME_HEIGHT)
+        width = cap.get(cv2.cv.CV_CAP_PROP_FRAME_WIDTH)
+        height = cap.get(cv2.cv.CV_CAP_PROP_FRAME_HEIGHT)
         print("Height: ", height)
         print("Width: ", width)
 
