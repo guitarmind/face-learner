@@ -164,8 +164,7 @@ class WebcamClientProtocol(WebSocketClientProtocol):
 
     def detect_motion(self, frame):
         detectAreas = 0
-        gray = cv2.cvtColor(frame, cv2.cv.CV_COLOR_BGR2GRAY)
-        # gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+        gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
         gray = cv2.GaussianBlur(gray, (21, 21), 0)
 
         if self.prevFrame is None:
