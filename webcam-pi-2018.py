@@ -17,7 +17,8 @@ from twisted.internet import reactor, ssl
 from threading import Thread
 
 import face_processing as fp
-import tts
+import imutils
+# import tts
 
 
 parser = argparse.ArgumentParser()
@@ -85,6 +86,7 @@ class WebcamClientProtocol(WebSocketClientProtocol):
     def onOpen(self):
         self.pingsReceived = 0
         self.pongsSent = 0
+        self.prevFrame = None
         print("WebSocket connection opened.")
 
         # Start to upload images
@@ -126,18 +128,62 @@ class WebcamClientProtocol(WebSocketClientProtocol):
 
         # Detect face from Cloud Vision
         frame = self.detect_face(frame)
+        frame, isMotionDetect = self.detect_motion(frame)
 
         timestamp = time.time()
         data_url = fp.rgbframe_to_data_url(frame)
         msg = {
             'capture_time': timestamp,
-            'data_url': data_url
+            'data_url': data_url,
+            'detected_motion': isMotionDetect
         }
         json_string = json.dumps(msg)
         self.sendMessage(json_string)
 
         # send every cap_freq second
         self.factory.reactor.callLater(cap_freq, self.upload_image)
+
+    def detect_motion(self, frame):
+        detectAreas = 0
+        gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+        gray = cv2.GaussianBlur(gray, (21, 21), 0)
+
+        if self.prevFrame is None:
+            self.prevFrame = gray
+        else:
+            frameDelta = cv2.absdiff(self.prevFrame, gray)
+            self.prevFrame = gray
+            thresh = cv2.threshold(frameDelta, 25, 255, cv2.THRESH_BINARY)[1]
+
+            thresh = cv2.dilate(thresh, None, iterations=2)
+            cnts = cv2.findContours(thresh.copy(), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+            cnts = cnts[0] if imutils.is_cv2() else cnts[1]
+            maxCnt = None
+            maxAreaSize = 500 # if the contour is too small, ignore it
+            for c in cnts:
+                # Only choose the biggest area
+                if cv2.contourArea(c) > maxAreaSize:
+                    maxCnt = c
+                    detectAreas += 1
+
+
+            if maxCnt is not None:
+                # compute the bounding box for the contour, draw it on the frame,
+                # and update the text
+                (x, y, w, h) = cv2.boundingRect(maxCnt)
+                cv2.rectangle(frame, (x, y), (x + w, y + h), (0, 255, 0), 2)
+
+
+
+            # cv2.imshow("Security Feed", frame)
+            # cv2.imshow("Thresh", thresh)
+            # cv2.imshow("Frame Delta", frameDelta)
+            # key = cv2.waitKey(1) & 0xFF
+
+        if detectAreas > 0:
+            print("detect motion!!!", detectAreas)
+
+        return frame, detectAreas > 0
 
     def detect_face(self, frame):
         content = fp.rgbframe_to_base64(frame)
