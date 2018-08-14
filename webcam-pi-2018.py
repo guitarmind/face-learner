@@ -137,6 +137,7 @@ class WebcamClientProtocol(WebSocketClientProtocol):
             'image_url': image_url,
             'face_counts': face_counts
         }
+        print(msg)
 
         headers = {
             "Content-Type": "application/json"
@@ -152,7 +153,7 @@ class WebcamClientProtocol(WebSocketClientProtocol):
         cv2.imwrite("door.png", frame) # save frame as ima
 
         params = {
-            "content_id": str(timestamp) + ".png",
+            "content_id": str(int(timestamp)) + ".png",
             "content_type": "image/png"
         }
         r = requests.get("https://exohackchat.apps.exosite.io/getuploadurl",
@@ -190,7 +191,7 @@ class WebcamClientProtocol(WebSocketClientProtocol):
         print(out)
 
         params = {
-            "content_id": str(timestamp) + ".png",
+            "content_id": str(int(timestamp)) + ".png",
         }
         r = requests.get("https://exohackchat.apps.exosite.io/getdownloadurl",
             params=params)
