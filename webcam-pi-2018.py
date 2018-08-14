@@ -132,7 +132,7 @@ class WebcamClientProtocol(WebSocketClientProtocol):
         # Detect motion first
         motion_detected = self.detect_motion(frame)
 
-        timestamp = time.time()
+        timestamp = int(time.time())
         if motion_detected:
             # Detect face from Cloud Vision
             frame, face_counts = self.detect_face(frame)
@@ -213,7 +213,7 @@ class WebcamClientProtocol(WebSocketClientProtocol):
         cv2.imwrite("door.png", frame) # save frame as ima
 
         params = {
-            "content_id": str(int(timestamp)) + ".png",
+            "content_id": str(timestamp) + ".png",
             "content_type": "image/png"
         }
         r = requests.get("https://exohackchat.apps.exosite.io/getuploadurl",
@@ -251,7 +251,7 @@ class WebcamClientProtocol(WebSocketClientProtocol):
         print(out)
 
         params = {
-            "content_id": str(int(timestamp)) + ".png",
+            "content_id": str(timestamp) + ".png",
         }
         r = requests.get("https://exohackchat.apps.exosite.io/getdownloadurl",
             params=params)
