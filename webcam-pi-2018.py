@@ -129,12 +129,12 @@ class WebcamClientProtocol(WebSocketClientProtocol):
         # Detect motion first
         motion_detected = self.detect_motion(frame)
 
+        timestamp = time.time()
         if motion_detected:
             # Detect face from Cloud Vision
             frame, face_counts = self.detect_face(frame)
 
             # Upload to S3 url
-            timestamp = time.time()
             image_url = self.upload_to_s3(frame, timestamp)
 
             msg = {
@@ -142,16 +142,22 @@ class WebcamClientProtocol(WebSocketClientProtocol):
                 'image_url': image_url,
                 'face_counts': face_counts
             }
-            print(msg)
-
-            headers = {
-                "Content-Type": "application/json"
-            }
-            r = requests.post("https://exohackchat.apps.exosite.io/notifyCam",
-                json=msg, headers=headers)
-            print(r.text)
         else:
+            msg = {
+                'capture_time': timestamp,
+                'image_url': "",
+                'face_counts': 0
+            }
             print("No motion detected.")
+
+        print(msg)
+
+        headers = {
+            "Content-Type": "application/json"
+        }
+        r = requests.post("https://exohackchat.apps.exosite.io/notifyCam",
+            json=msg, headers=headers)
+        print(r.text)
 
         # send every cap_freq second
         self.factory.reactor.callLater(cap_freq, self.upload_image)
