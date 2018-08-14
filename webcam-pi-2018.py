@@ -34,6 +34,9 @@ args = parser.parse_args()
 # Google Cloud Vision
 feature_type = "FACE_DETECTION"
 
+# Motion Detection threshold
+diff_threshold = 25
+
 # Capture frequency
 # cap_freq = 0.5
 cap_freq = 3
@@ -177,10 +180,10 @@ class WebcamClientProtocol(WebSocketClientProtocol):
             self.prevFrame = gray
 
             if opencv_version == "V2":
-                thresh = cv2.threshold(frameDelta, 25, 255, cv2.cv.CV_THRESH_BINARY)[1]
+                thresh = cv2.threshold(frameDelta, diff_threshold, 255, cv2.cv.CV_THRESH_BINARY)[1]
                 cnts = cv2.findContours(thresh.copy(), cv2.cv.CV_RETR_EXTERNAL, cv2.cv.CV_CHAIN_APPROX_SIMPLE)
             else:
-                thresh = cv2.threshold(frameDelta, 25, 255, cv2.THRESH_BINARY)[1]
+                thresh = cv2.threshold(frameDelta, diff_threshold, 255, cv2.THRESH_BINARY)[1]
                 cnts = cv2.findContours(thresh.copy(), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
 
             thresh = cv2.dilate(thresh, None, iterations=2)
