@@ -196,12 +196,6 @@ class WebcamClientProtocol(WebSocketClientProtocol):
                     maxCnt = c
                     detectAreas += 1
 
-            if maxCnt is not None:
-                # compute the bounding box for the contour, draw it on the frame,
-                # and update the text
-                (x, y, w, h) = cv2.boundingRect(maxCnt)
-                cv2.rectangle(frame, (x, y), (x + w, y + h), (0, 255, 0), 2)
-
         if detectAreas > 0:
             print("Detect motion!!!", detectAreas)
 
