@@ -18,7 +18,6 @@ from threading import Thread
 
 import face_processing as fp
 import imutils
-# import tts
 
 
 parser = argparse.ArgumentParser()
@@ -28,12 +27,9 @@ parser.add_argument('--port', type=int, default=443,
                     help='Websocket server port')
 parser.add_argument('--endpoint', type=str, default="/webcam",
                     help='Websocket endpoint to upload images (ws:// or wss://)')
-parser.add_argument('--key', type=str, default="",
-                    help='Cloud Vision API key')
 args = parser.parse_args()
 
 # Google Cloud Vision
-api_key = args.key
 feature_type = "FACE_DETECTION"
 
 # Capture frequency
@@ -113,10 +109,14 @@ class WebcamClientProtocol(WebSocketClientProtocol):
 
         # Capture new frame
         ret, frame = cap.read()
-        # gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
 
-        width = cap.get(cv2.cv.CV_CAP_PROP_FRAME_WIDTH)
-        height = cap.get(cv2.cv.CV_CAP_PROP_FRAME_HEIGHT)
+        # OpenCV 2.x
+        # width = cap.get(cv2.cv.CV_CAP_PROP_FRAME_WIDTH)
+        # height = cap.get(cv2.cv.CV_CAP_PROP_FRAME_HEIGHT)
+        
+        # OpenCV 3.x
+        width = cap.get(cv2.CAP_PROP_FRAME_WIDTH)
+        height = cap.get(cv2.CAP_PROP_FRAME_HEIGHT)
         print("Height: ", height)
         print("Width: ", width)
 
@@ -126,19 +126,32 @@ class WebcamClientProtocol(WebSocketClientProtocol):
             print("Width: ", resized_frame.shape[1])
             frame = resized_frame
 
-        # Detect face from Cloud Vision
-        frame = self.detect_face(frame)
-        frame, isMotionDetect = self.detect_motion(frame)
+        # Detect motion first
+        motion_detected = self.detect_motion(frame)
 
-        timestamp = time.time()
-        data_url = fp.rgbframe_to_data_url(frame)
-        msg = {
-            'capture_time': timestamp,
-            'data_url': data_url,
-            'detected_motion': isMotionDetect
-        }
-        json_string = json.dumps(msg)
-        self.sendMessage(json_string)
+        if motion_detected:
+            # Detect face from Cloud Vision
+            frame, face_counts = self.detect_face(frame)
+
+            # Upload to S3 url
+            timestamp = time.time()
+            image_url = self.upload_to_s3(frame, timestamp)
+
+            msg = {
+                'capture_time': timestamp,
+                'image_url': image_url,
+                'face_counts': face_counts
+            }
+            print(msg)
+
+            headers = {
+                "Content-Type": "application/json"
+            }
+            r = requests.post("https://exohackchat.apps.exosite.io/notifyCam",
+                json=msg, headers=headers)
+            print(r.text)
+        else:
+            print("No motion detected.")
 
         # send every cap_freq second
         self.factory.reactor.callLater(cap_freq, self.upload_image)
@@ -173,17 +186,62 @@ class WebcamClientProtocol(WebSocketClientProtocol):
                 (x, y, w, h) = cv2.boundingRect(maxCnt)
                 cv2.rectangle(frame, (x, y), (x + w, y + h), (0, 255, 0), 2)
 
-
-
-            # cv2.imshow("Security Feed", frame)
-            # cv2.imshow("Thresh", thresh)
-            # cv2.imshow("Frame Delta", frameDelta)
-            # key = cv2.waitKey(1) & 0xFF
-
         if detectAreas > 0:
-            print("detect motion!!!", detectAreas)
+            print("Detect motion!!!", detectAreas)
 
-        return frame, detectAreas > 0
+        return detectAreas > 0
+
+    def upload_to_s3(self, frame, timestamp):
+        cv2.imwrite("door.png", frame) # save frame as ima
+
+        params = {
+            "content_id": str(int(timestamp)) + ".png",
+            "content_type": "image/png"
+        }
+        r = requests.get("https://exohackchat.apps.exosite.io/getuploadurl",
+            params=params)
+        upload_info = json.loads(r.text)
+
+        upload_url = upload_info["url"]
+        upload_params = upload_info["inputs"]
+
+        curl_command = """
+            curl -X POST {} \
+            -H 'Cache-Control: no-cache' \
+            -H 'Content-Type: multipart/form-data' \
+            -F acl=authenticated-read \
+            -F 'content-type=image/png' \
+            -F 'key={}' \
+            -F policy={}  \
+            -F x-amz-algorithm={} \
+            -F x-amz-credential={} \
+            -F x-amz-date={} \
+            -F x-amz-signature={} \
+            -F file='@door.png' \
+            --verbose
+        """.format(
+            upload_url,
+            upload_params["key"],
+            upload_params["policy"],
+            upload_params["x-amz-algorithm"],
+            upload_params["x-amz-credential"],
+            upload_params["x-amz-date"],
+            upload_params["x-amz-signature"]
+        )
+
+        out = os.system(curl_command)
+        print(out)
+
+        params = {
+            "content_id": str(int(timestamp)) + ".png",
+        }
+        r = requests.get("https://exohackchat.apps.exosite.io/getdownloadurl",
+            params=params)
+        download_info = json.loads(r.text)
+        print(download_info)
+
+        return download_info["url"]
+
 
     def detect_face(self, frame):
         content = fp.rgbframe_to_base64(frame)
@@ -203,17 +261,15 @@ class WebcamClientProtocol(WebSocketClientProtocol):
           ]
         }
 
-        params = {
-            "key": api_key
-        }
         headers = {
             "Content-Type": "application/json"
         }
 
-        r = requests.post("https://vision.googleapis.com/v1/images:annotate",
-            json=request_body, params=params, headers=headers)
+        r = requests.post("https://exohackchat.apps.exosite.io/vision",
+            json=request_body, headers=headers)
         json_data = json.loads(r.text)
 
+        face_counts = 0
         if "responses" in json_data and len(json_data["responses"]) > 0:
             json_data = json_data["responses"][0]
             if "faceAnnotations" in json_data and len(json_data["faceAnnotations"]):
@@ -247,7 +303,9 @@ class WebcamClientProtocol(WebSocketClientProtocol):
                     color, _ = pick_face_color(1)
                     fp.draw_face_box(frame, color, top, right, bottom, left)
 
-        return frame
+                    face_counts += 1
+
+        return frame, face_counts
 
 def main(argv):
     log.startLogging(sys.stdout)
