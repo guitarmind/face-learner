@@ -34,7 +34,7 @@ feature_type = "FACE_DETECTION"
 
 # Capture frequency
 # cap_freq = 0.5
-cap_freq = 1
+cap_freq = 3
 
 # Capture from camera at location 0
 cap = cv2.VideoCapture(0)
