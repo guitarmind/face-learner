@@ -178,16 +178,12 @@ class WebcamClientProtocol(WebSocketClientProtocol):
 
             if opencv_version == "V2":
                 thresh = cv2.threshold(frameDelta, 25, 255, cv2.cv.CV_THRESH_BINARY)[1]
-            else:
-                thresh = cv2.threshold(frameDelta, 25, 255, cv2.THRESH_BINARY)[1]
-
-            thresh = cv2.dilate(thresh, None, iterations=2)
-
-            if opencv_version == "V2":
                 cnts = cv2.findContours(thresh.copy(), cv2.cv.CV_RETR_EXTERNAL, cv2.cv.CV_CHAIN_APPROX_SIMPLE)
             else:
+                thresh = cv2.threshold(frameDelta, 25, 255, cv2.THRESH_BINARY)[1]
                 cnts = cv2.findContours(thresh.copy(), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
 
+            thresh = cv2.dilate(thresh, None, iterations=2)
             cnts = cnts[0] if imutils.is_cv2() else cnts[1]
             maxCnt = None
             maxAreaSize = 500 # if the contour is too small, ignore it
@@ -196,7 +192,6 @@ class WebcamClientProtocol(WebSocketClientProtocol):
                 if cv2.contourArea(c) > maxAreaSize:
                     maxCnt = c
                     detectAreas += 1
-
 
             if maxCnt is not None:
                 # compute the bounding box for the contour, draw it on the frame,
