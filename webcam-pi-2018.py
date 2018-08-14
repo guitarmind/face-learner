@@ -17,7 +17,7 @@ from twisted.internet import reactor, ssl
 from threading import Thread
 
 import face_processing as fp
-import tts
+import imutils
 
 
 parser = argparse.ArgumentParser()
@@ -82,6 +82,7 @@ class WebcamClientProtocol(WebSocketClientProtocol):
     def onOpen(self):
         self.pingsReceived = 0
         self.pongsSent = 0
+        self.prevFrame = None
         print("WebSocket connection opened.")
 
         # Start to upload images
@@ -110,12 +111,12 @@ class WebcamClientProtocol(WebSocketClientProtocol):
         ret, frame = cap.read()
 
         # OpenCV 2.x
-        width = cap.get(cv2.cv.CV_CAP_PROP_FRAME_WIDTH)
-        height = cap.get(cv2.cv.CV_CAP_PROP_FRAME_HEIGHT)
+        # width = cap.get(cv2.cv.CV_CAP_PROP_FRAME_WIDTH)
+        # height = cap.get(cv2.cv.CV_CAP_PROP_FRAME_HEIGHT)
         
         # OpenCV 3.x
-        # width = cap.get(cv2.CAP_PROP_FRAME_WIDTH)
-        # height = cap.get(cv2.CAP_PROP_FRAME_HEIGHT)
+        width = cap.get(cv2.CAP_PROP_FRAME_WIDTH)
+        height = cap.get(cv2.CAP_PROP_FRAME_HEIGHT)
         print("Height: ", height)
         print("Width: ", width)
 
@@ -125,29 +126,70 @@ class WebcamClientProtocol(WebSocketClientProtocol):
             print("Width: ", resized_frame.shape[1])
             frame = resized_frame
 
-        # Detect face from Cloud Vision
-        frame, face_counts = self.detect_face(frame)
+        # Detect motion first
+        motion_detected = self.detect_motion(frame)
 
-        # Upload to S3 url
-        timestamp = time.time()
-        image_url = self.upload_to_s3(frame, timestamp)
+        if motion_detected:
+            # Detect face from Cloud Vision
+            frame, face_counts = self.detect_face(frame)
 
-        msg = {
-            'capture_time': timestamp,
-            'image_url': image_url,
-            'face_counts': face_counts
-        }
-        print(msg)
+            # Upload to S3 url
+            timestamp = time.time()
+            image_url = self.upload_to_s3(frame, timestamp)
 
-        headers = {
-            "Content-Type": "application/json"
-        }
-        r = requests.post("https://exohackchat.apps.exosite.io/notifyCam",
-            json=msg, headers=headers)
-        print(r.text)
+            msg = {
+                'capture_time': timestamp,
+                'image_url': image_url,
+                'face_counts': face_counts
+            }
+            print(msg)
+
+            headers = {
+                "Content-Type": "application/json"
+            }
+            r = requests.post("https://exohackchat.apps.exosite.io/notifyCam",
+                json=msg, headers=headers)
+            print(r.text)
+        else:
+            print("No motion detected.")
 
         # send every cap_freq second
         self.factory.reactor.callLater(cap_freq, self.upload_image)
+
+    def detect_motion(self, frame):
+        detectAreas = 0
+        gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+        gray = cv2.GaussianBlur(gray, (21, 21), 0)
+
+        if self.prevFrame is None:
+            self.prevFrame = gray
+        else:
+            frameDelta = cv2.absdiff(self.prevFrame, gray)
+            self.prevFrame = gray
+            thresh = cv2.threshold(frameDelta, 25, 255, cv2.THRESH_BINARY)[1]
+
+            thresh = cv2.dilate(thresh, None, iterations=2)
+            cnts = cv2.findContours(thresh.copy(), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+            cnts = cnts[0] if imutils.is_cv2() else cnts[1]
+            maxCnt = None
+            maxAreaSize = 500 # if the contour is too small, ignore it
+            for c in cnts:
+                # Only choose the biggest area
+                if cv2.contourArea(c) > maxAreaSize:
+                    maxCnt = c
+                    detectAreas += 1
+
+
+            if maxCnt is not None:
+                # compute the bounding box for the contour, draw it on the frame,
+                # and update the text
+                (x, y, w, h) = cv2.boundingRect(maxCnt)
+                cv2.rectangle(frame, (x, y), (x + w, y + h), (0, 255, 0), 2)
+
+        if detectAreas > 0:
+            print("Detect motion!!!", detectAreas)
+
+        return detectAreas > 0
 
     def upload_to_s3(self, frame, timestamp):
         cv2.imwrite("door.png", frame) # save frame as ima
