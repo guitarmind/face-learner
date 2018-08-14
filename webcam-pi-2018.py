@@ -19,6 +19,8 @@ from threading import Thread
 import face_processing as fp
 import imutils
 
+opencv_version = "V2" if cv2.__version__.startswith("2.") else "V3"
+
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--host', type=str, default="imwy.apps.exosite.io",
@@ -110,13 +112,14 @@ class WebcamClientProtocol(WebSocketClientProtocol):
         # Capture new frame
         ret, frame = cap.read()
 
-        # OpenCV 2.x
-        width = cap.get(cv2.cv.CV_CAP_PROP_FRAME_WIDTH)
-        height = cap.get(cv2.cv.CV_CAP_PROP_FRAME_HEIGHT)
-        
-        # OpenCV 3.x
-        # width = cap.get(cv2.CAP_PROP_FRAME_WIDTH)
-        # height = cap.get(cv2.CAP_PROP_FRAME_HEIGHT)
+        if opencv_version == "V2":
+            # OpenCV 2.x
+            width = cap.get(cv2.cv.CV_CAP_PROP_FRAME_WIDTH)
+            height = cap.get(cv2.cv.CV_CAP_PROP_FRAME_HEIGHT)
+        else:
+            # OpenCV 3.x
+            width = cap.get(cv2.CAP_PROP_FRAME_WIDTH)
+            height = cap.get(cv2.CAP_PROP_FRAME_HEIGHT)
         print("Height: ", height)
         print("Width: ", width)
 
@@ -172,12 +175,19 @@ class WebcamClientProtocol(WebSocketClientProtocol):
         else:
             frameDelta = cv2.absdiff(self.prevFrame, gray)
             self.prevFrame = gray
-            thresh = cv2.threshold(frameDelta, 25, 255, cv2.cv.CV_THRESH_BINARY)[1]
-            # thresh = cv2.threshold(frameDelta, 25, 255, cv2.THRESH_BINARY)[1]
+
+            if opencv_version == "V2":
+                thresh = cv2.threshold(frameDelta, 25, 255, cv2.cv.CV_THRESH_BINARY)[1]
+            else:
+                thresh = cv2.threshold(frameDelta, 25, 255, cv2.THRESH_BINARY)[1]
 
             thresh = cv2.dilate(thresh, None, iterations=2)
-            cnts = cv2.findContours(thresh.copy(), cv2.cv.CV_RETR_EXTERNAL, cv2.cv.CV_CHAIN_APPROX_SIMPLE)
-            # cnts = cv2.findContours(thresh.copy(), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+
+            if opencv_version == "V2":
+                cnts = cv2.findContours(thresh.copy(), cv2.cv.CV_RETR_EXTERNAL, cv2.cv.CV_CHAIN_APPROX_SIMPLE)
+            else:
+                cnts = cv2.findContours(thresh.copy(), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+
             cnts = cnts[0] if imutils.is_cv2() else cnts[1]
             maxCnt = None
             maxAreaSize = 500 # if the contour is too small, ignore it
