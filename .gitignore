@@ -8,6 +8,7 @@ face-learner.websocket.log
 .DS_Store
 debug/
 !learned_faces.pkl
+door.png
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
