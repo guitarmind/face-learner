@@ -111,12 +111,12 @@ class WebcamClientProtocol(WebSocketClientProtocol):
         ret, frame = cap.read()
 
         # OpenCV 2.x
-        # width = cap.get(cv2.cv.CV_CAP_PROP_FRAME_WIDTH)
-        # height = cap.get(cv2.cv.CV_CAP_PROP_FRAME_HEIGHT)
+        width = cap.get(cv2.cv.CV_CAP_PROP_FRAME_WIDTH)
+        height = cap.get(cv2.cv.CV_CAP_PROP_FRAME_HEIGHT)
         
         # OpenCV 3.x
-        width = cap.get(cv2.CAP_PROP_FRAME_WIDTH)
-        height = cap.get(cv2.CAP_PROP_FRAME_HEIGHT)
+        # width = cap.get(cv2.CAP_PROP_FRAME_WIDTH)
+        # height = cap.get(cv2.CAP_PROP_FRAME_HEIGHT)
         print("Height: ", height)
         print("Width: ", width)
 
@@ -164,7 +164,8 @@ class WebcamClientProtocol(WebSocketClientProtocol):
 
     def detect_motion(self, frame):
         detectAreas = 0
-        gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+        gray = cv2.cvtColor(frame, cv2.cv.CV_COLOR_BGR2GRAY)
+        # gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
         gray = cv2.GaussianBlur(gray, (21, 21), 0)
 
         if self.prevFrame is None:
@@ -172,10 +173,12 @@ class WebcamClientProtocol(WebSocketClientProtocol):
         else:
             frameDelta = cv2.absdiff(self.prevFrame, gray)
             self.prevFrame = gray
-            thresh = cv2.threshold(frameDelta, 25, 255, cv2.THRESH_BINARY)[1]
+            thresh = cv2.threshold(frameDelta, 25, 255, cv2.cv.CV_THRESH_BINARY)[1]
+            # thresh = cv2.threshold(frameDelta, 25, 255, cv2.THRESH_BINARY)[1]
 
             thresh = cv2.dilate(thresh, None, iterations=2)
-            cnts = cv2.findContours(thresh.copy(), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+            cnts = cv2.findContours(thresh.copy(), cv2.cv.CV_RETR_EXTERNAL, cv2.cv.CV_CHAIN_APPROX_SIMPLE)
+            # cnts = cv2.findContours(thresh.copy(), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
             cnts = cnts[0] if imutils.is_cv2() else cnts[1]
             maxCnt = None
             maxAreaSize = 500 # if the contour is too small, ignore it
