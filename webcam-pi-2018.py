@@ -331,6 +331,9 @@ class WebcamClientProtocol(WebSocketClientProtocol):
 def main(argv):
     log.startLogging(sys.stdout)
 
+    # Sleep for a while to wait for networking
+    time.sleep(10)
+
     ws_endpoint = "wss://{}{}".format(args.host, args.endpoint)
     factory = WebSocketClientFactory(ws_endpoint)
     factory.protocol = WebcamClientProtocol
