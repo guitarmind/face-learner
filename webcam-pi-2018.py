@@ -35,7 +35,8 @@ args = parser.parse_args()
 feature_type = "FACE_DETECTION"
 
 # Motion Detection threshold
-diff_threshold = 25
+# diff_threshold = 25
+diff_threshold = 50
 
 # Capture frequency
 # cap_freq = 0.5
@@ -110,7 +111,12 @@ class WebcamClientProtocol(WebSocketClientProtocol):
         self.pongsSent += 1
         print("Pong sent to {} - {}".format(self.peer, self.pongsSent))
 
+    def processing_time(self, start_time):
+        return (time.time() - start_time) * 1000 # ms
+
     def upload_image(self):
+
+        start_time = time.time()
 
         # Capture new frame
         ret, frame = cap.read()
@@ -164,6 +170,11 @@ class WebcamClientProtocol(WebSocketClientProtocol):
         r = requests.post("https://exohackchat.apps.exosite.io/notifyCam",
             json=msg, headers=headers)
         print(r.text)
+
+
+        print("Time spent on detecting motion and face: {:.2f} ms".format(
+            self.processing_time(start_time)
+        ))
 
         # send every cap_freq second
         self.factory.reactor.callLater(cap_freq, self.upload_image)
